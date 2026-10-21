@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Режим ожидания — анимация</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#d9e3eb; --ink:#303f4a; --muted:#64727e; --blue:#007dde; --orange:#fc7b1a; --backdrop:#111417;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--backdrop);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px max(16px,env(safe-area-inset-left,0px))}
+.note{color:#7c8892;font-size:13px}
+.rig{position:relative;flex:none}
+.device{position:absolute;left:0;top:0;width:1064px;height:640px;padding:20px;border-radius:28px;background:linear-gradient(160deg,#2a3036,#1b1f23);
+  box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);transform-origin:0 0}
+.screen{position:relative;width:1024px;height:600px;border-radius:6px;overflow:hidden;
+  background:radial-gradient(ellipse 520px 380px at 512px 250px,#eef3f7 0,rgba(238,243,247,0) 100%),var(--bg)}
+
+/* циферблат — тот же, что на экране «Сварка» */
+.dial{position:absolute;left:338px;top:56px;width:348px;height:348px;transform:scale(.92);transform-origin:50% 50%}
+.dial-base,.dial-sheen{position:absolute;inset:0;border-radius:50%}
+.dial-base{background:radial-gradient(circle,#a3b0ba 0 127px,#c3cdd5 129px,#cfd8df 151px,#bcc7d0 172px,#aab7c0 174px);
+  box-shadow:0 14px 30px rgba(45,65,85,.22),0 2px 4px rgba(45,65,85,.12),inset 0 2px 2px rgba(255,255,255,.9),inset 0 -4px 8px rgba(60,80,100,.18)}
+.dial-sheen{background:linear-gradient(155deg,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 45%,rgba(70,92,110,.16) 100%);
+  -webkit-mask:radial-gradient(circle,transparent 129px,#000 130px);mask:radial-gradient(circle,transparent 129px,#000 130px);opacity:.55;pointer-events:none}
+.dial > svg{position:absolute;inset:0;width:348px;height:348px;font-family:inherit}
+.dial-face{position:absolute;left:62px;top:62px;width:224px;height:224px;border-radius:50%;
+  background:radial-gradient(circle at 46% 34%,#fff 0,#f5f8fa 52%,#dfe7ed 100%);box-shadow:0 16px 30px rgba(30,50,70,.28),inset 0 -5px 12px rgba(0,0,0,.05);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.dial-face svg.i{width:58px;height:58px;fill:none;stroke:#8fa0ad;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.dial-face .ph{font-size:15px;font-weight:500;color:var(--muted);height:18px}
+
+/* горелка, свечение и искры — поверх экрана */
+#fx{position:absolute;inset:0;width:1024px;height:600px;pointer-events:none;overflow:visible}
+
+.txt{position:absolute;left:0;right:0;top:478px;text-align:center}
+.txt b{display:block;font-size:26px;font-weight:600;color:var(--ink);letter-spacing:-.2px}
+.txt span{display:block;font-size:15px;color:var(--muted);margin-top:6px}
+
+/* ---------- циферблат без лишних теней: плоско и чисто ---------- */
+.dial-base{background:#cbd5dc!important;box-shadow:none!important}
+.dial-sheen{display:none!important}
+.dial-face{background:#fff!important;box-shadow:none!important}
+</style>
+</head>
+<body>
+<div class="note">Превью анимации для экрана «Режим ожидания» · в стиле интерфейса · 1024×600</div>
+<div class="rig" id="rig"><div class="device" id="device"><div class="screen">
+  <div class="dial">
+    <div class="dial-base"></div>
+    <svg id="seg" viewBox="0 0 348 348"></svg>
+    <div class="dial-sheen"></div>
+    <svg id="ticks" viewBox="0 0 348 348"></svg>
+    <div class="dial-face"><svg class="i" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg><div class="ph" id="ph">Ожидание</div></div>
+  </div>
+  <svg id="fx" viewBox="0 0 1024 600">
+    <defs>
+      <radialGradient id="glow"><stop offset="0" stop-color="#ffd27a" stop-opacity=".95"/><stop offset=".35" stop-color="#fc9a3a" stop-opacity=".45"/><stop offset="1" stop-color="#fc7b1a" stop-opacity="0"/></radialGradient>
+      <filter id="sh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#2d4155" flood-opacity=".28"/></filter>
+    </defs>
+    <circle id="glowC" r="60" fill="url(#glow)"/>
+    <g id="sparks"></g>
+    <polygon id="tri" fill="#fc7b1a"/>
+    <g id="torch">
+      <circle id="halo" r="30" fill="#e0342f" opacity="0"/>
+      <circle r="24" fill="#fff" filter="url(#sh)"/>
+      <g id="flame" transform="translate(-12.5 -12.5) scale(1.04)" fill="none" stroke="#e0342f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22c-4 0-7-2.8-7-6.6 0-3.3 2.3-5.3 3.6-7.6.6 1.4 1.4 2.2 2.4 2.6C11 7 12.5 4.3 15 2c.3 3.4 4 6.7 4 12.2C19 18.9 16 22 12 22z"/><path d="M12 22c-1.8 0-3-1.3-3-3 0-1.8 1.6-2.8 3-5 1.4 2.2 3 3.2 3 5 0 1.7-1.2 3-3 3z"/>
+      </g>
+    </g>
+  </svg>
+  <div class="txt"><b>Режим ожидания</b><span>Коснитесь экрана, чтобы продолжить</span></div>
+</div></div></div>
+
+<script>
+/* Анимация ожидания в языке интерфейса: секции кольца заполняются, как во время сварки,
+   после полного круга — синяя «продувка», затем цикл начинается заново. */
+function initStandbyAnim(root){
+  const $=id=>root.querySelector('#'+id);
+  const N=4, C=174, R=151, W=46, GAP=1.7, SCALE=.92;
+  const SC={x:512, y:56+174};                 // центр циферблата на экране
+  const RING=(C-1)*SCALE;                     // внешний край кольца на экране
+  const T_WELD=9000, T_PURGE=1800, T_RESET=700, T_ALL=T_WELD+T_PURGE+T_RESET;
+  const PAL={weld:['#f7d434','#fc7b1a'], purge:['#3d9df0','#0b6fd6']};
+  const P=(a,r,cx=C,cy=C)=>[cx+r*Math.sin(a*Math.PI/180), cy-r*Math.cos(a*Math.PI/180)];
+  const mix=(a,b,t)=>{ const h=x=>[1,3,5].map(i=>parseInt(x.slice(i,i+2),16)); const A=h(a),B=h(b); return '#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join(''); };
+  const arc=(a0,a1)=>{ const [x0,y0]=P(a0,R),[x1,y1]=P(a1,R); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${a1-a0>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+
+  // кольцо с рисками вокруг центра
+  let t=`<circle cx="${C}" cy="${C}" r="119.5" fill="none" stroke="#b7c3cc" stroke-width="15"/><circle cx="${C}" cy="${C}" r="127" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1"/>`;
+  for(let i=0;i<72;i++){ const a=i*5, big=i%18===0, [x0,y0]=P(a,115.5), [x1,y1]=P(a,big?124:122.5);
+    t+=`<line x1="${x0.toFixed(2)}" y1="${y0.toFixed(2)}" x2="${x1.toFixed(2)}" y2="${y1.toFixed(2)}" stroke="#fff" stroke-opacity="${big?1:.85}" stroke-width="${big?2.2:1.4}" stroke-linecap="round"/>`; }
+  $('ticks').innerHTML=t;
+
+  function ring(ang,mode,alpha){
+    const pal=PAL[mode]; let out='';
+    for(let i=0;i<N;i++){
+      const a0=360/N*i+GAP, a1=360/N*(i+1)-GAP, mid=360/N*(i+.5);
+      out+=`<path d="${arc(a0,a1)}" stroke="#f5f8fa" stroke-width="${W}" fill="none"/>`;
+      let filled=false;
+      if(pal){ const end=Math.min(a1,ang); if(end>a0+0.05){ out+=`<path d="${arc(a0,end)}" stroke="${mix(pal[0],pal[1],i/(N-1))}" stroke-opacity="${alpha.toFixed(2)}" stroke-width="${W}" fill="none"/>`; filled=ang>=mid&&alpha>.5; } }
+      const [lx,ly]=P(mid,R), rot=(mid>90&&mid<270)?mid+180:mid;
+      out+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" transform="rotate(${rot} ${lx.toFixed(1)} ${ly.toFixed(1)})" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="${filled?'#fff':'#8a97a1'}">0${i+1}</text>`;
+    }
+    return out;
+  }
+
+  const sparks=[]; let last=performance.now(), key='';
+  const t0=performance.now();
+  function frame(now, still){
+    const dt=Math.min(50,now-last); last=now;
+    const tc=still?T_WELD*0.58:(now-t0)%T_ALL;
+    let mode='weld', ang, alpha=1, torchA=1, ph='Ожидание';
+    if(tc<T_WELD){ ang=tc/T_WELD*360; }
+    else if(tc<T_WELD+T_PURGE){ mode='purge'; ang=360; torchA=Math.max(0,1-(tc-T_WELD)/300); }
+    else { mode='purge'; ang=360; alpha=1-(tc-T_WELD-T_PURGE)/T_RESET; torchA=1-alpha; }
+    const k=mode+'|'+Math.round(ang*4)+'|'+alpha.toFixed(2);
+    if(k!==key){ key=k; $('seg').innerHTML=ring(ang,mode,alpha); }
+    if($('ph').textContent!==ph) $('ph').textContent=ph;
+    const a=mode==='weld'?ang:0;
+
+    // горелка снаружи кольца, иконка всегда стоит прямо
+    const [tx,ty]=P(a,RING+36,SC.x,SC.y);
+    $('torch').setAttribute('transform',`translate(${tx.toFixed(1)} ${ty.toFixed(1)})`);
+    $('torch').setAttribute('opacity',torchA.toFixed(2));
+    const pulse=still?0:(Math.sin(now/170)+1)/2, ks=1.04*(1+.12*pulse);
+    $('flame').setAttribute('transform',`translate(${(-12*ks).toFixed(2)} ${(-12*ks).toFixed(2)}) scale(${ks.toFixed(3)})`);
+    $('halo').setAttribute('r',(27+5*pulse).toFixed(1)); $('halo').setAttribute('opacity',(.08+.14*pulse).toFixed(2));
+    // указатель-треугольник у кромки, как на экране «Сварка»
+    const tip=P(a,RING+3,SC.x,SC.y), l=P(a-2.6,RING+16,SC.x,SC.y), r=P(a+2.6,RING+16,SC.x,SC.y);
+    $('tri').setAttribute('points',[tip,l,r].map(p=>p.map(v=>v.toFixed(1)).join(',')).join(' '));
+    $('tri').setAttribute('opacity',torchA.toFixed(2));
+    // свечение дуги — только во время «сварки»
+    const welding=mode==='weld', [gx,gy]=P(a,RING-8,SC.x,SC.y), fl=welding?(still?.85:.8+Math.random()*.2):0;
+    const gc=$('glowC'); gc.setAttribute('cx',gx.toFixed(1)); gc.setAttribute('cy',gy.toFixed(1)); gc.setAttribute('opacity',fl.toFixed(2)); gc.setAttribute('r',(50+fl*14).toFixed(1));
+
+    // искры: мелкие оранжевые точки, разлетаются от кромки и гаснут
+    if(welding && !still && Math.random()<.85){
+      const n=1+Math.floor(Math.random()*3), [sx,sy]=P(a,RING-2,SC.x,SC.y), nrm=(a-90)*Math.PI/180, tang=nrm-Math.PI/2;
+      for(let i=0;i<n;i++){ const d=nrm+(Math.random()-.5)*2.2, s=.8+Math.random()*2.4, back=Math.random()*1.2;
+        sparks.push({x:sx,y:sy,vx:Math.cos(d)*s+Math.cos(tang)*back,vy:Math.sin(d)*s+Math.sin(tang)*back,life:0,max:22+Math.random()*26,r:1.2+Math.random()*1.6,c:Math.random()<.5?'#fc7b1a':'#f7b733'}); }
+    }
+    let svg=''; const f=dt/16.7;
+    for(let i=sparks.length-1;i>=0;i--){ const p=sparks[i]; p.life+=f; p.vy+=.06*f; p.x+=p.vx*f; p.y+=p.vy*f;
+      const kk=1-p.life/p.max; if(kk<=0||p.y>462){ sparks.splice(i,1); continue; }
+      svg+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(p.r*(.5+kk*.5)).toFixed(2)}" fill="${p.c}" opacity="${kk.toFixed(2)}"/>`; }
+    $('sparks').innerHTML=svg;
+  }
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){ frame(t0,true); return; }
+  (function loop(now){ frame(now,false); requestAnimationFrame(loop); })(t0);
+}
+
+/* масштаб корпуса под окно */
+function fit(){
+  const k=Math.min((innerWidth-32)/1064,(innerHeight-60)/640);
+  const rig=document.getElementById('rig'); rig.style.width=1064*k+'px'; rig.style.height=640*k+'px';
+  document.getElementById('device').style.transform=`scale(${k})`;
+}
+addEventListener('resize',fit); fit();
+initStandbyAnim(document.querySelector('.screen'));
+</script>
+</body>
+</html>

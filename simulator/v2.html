@@ -1,0 +1,1286 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Симулятор орбитальной сварки — вариант 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#d9e3eb; --card:#fff; --ink:#303f4a; --muted:#64727e; --muted2:#586772;
+  --chip:#e2eaef; --blue:#007dde; --blue2:#0a7ff9; --line:#9cbacd; --green:#14c27a;
+  --dis:#e8eef2; --red:#d92d2d; --orange:#fc7b1a; --backdrop:#111417; --selcol:#eaf3fc;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--backdrop);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-variant-numeric:tabular-nums;overflow:hidden;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation}
+svg.i{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- презентерская панель ---------- */
+.deck{position:fixed;left:0;right:0;top:0;min-height:56px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 22px;white-space:nowrap;
+  color:#aeb8c0;font-size:13px;padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));transition:opacity .25s;z-index:5}
+.deck.hidden{opacity:0;pointer-events:none}
+.deck .grp{display:flex;align-items:center;gap:8px}
+.deck .ver{color:#fff;font-weight:600;background:#2c6fd6;padding:5px 10px;border-radius:8px}
+.seg{display:flex;background:#22282e;border-radius:10px;padding:3px}
+.seg button{padding:6px 11px;border-radius:7px;color:#aeb8c0;font-size:13px;font-weight:500}
+.seg button.on{background:#3a434c;color:#fff}
+.deck .reset{padding:7px 12px;border-radius:9px;background:#22282e;color:#cfd7dd;font-weight:500}
+.deck .hint{color:#69737c}
+@media (max-width:1180px){.deck .hint{display:none}.deck{gap:8px 14px}}
+@media (max-width:760px){.deck .lbl{display:none}.deck{gap:6px 8px;padding-top:calc(8px + env(safe-area-inset-top,0px));padding-bottom:8px}.seg button{padding:6px 9px}.deck .reset{padding:7px 10px}}
+
+/* ---------- корпус и подписи ---------- */
+.stage{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));top:56px;bottom:env(safe-area-inset-bottom,0px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.rig{position:relative;flex:none}
+.device{position:absolute;left:0;top:0;width:1064px;height:640px;padding:20px;border-radius:28px;background:linear-gradient(160deg,#2a3036,#1b1f23);
+  box-shadow:0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);transform-origin:0 0}
+.screen{position:relative;width:1024px;height:600px;background:var(--bg);overflow:hidden;border-radius:6px}
+.screen.glow{background:radial-gradient(ellipse 420px 300px at 110px 560px,#f1f5f8 0,rgba(241,245,248,0) 100%),var(--bg)}
+.caption{min-height:38px;max-width:900px;display:flex;align-items:center;gap:10px;color:#c7d0d7;font-size:14px;line-height:1.35;padding:8px 16px;border-radius:12px;
+  background:#1d2329;opacity:0;transform:translateY(-4px);transition:opacity .2s,transform .2s;text-align:left}
+.caption.show{opacity:1;transform:none}
+.caption .i{font-size:18px;color:#6fb2ff}
+
+/* ---------- шапка ---------- */
+.tile{position:absolute;background:var(--card);border-radius:20px;display:flex;align-items:center}
+.back{left:20px;top:20px;width:80px;height:80px;justify-content:center;font-size:36px;color:var(--ink);border-radius:18px}
+.back .i{stroke-width:1.8}
+.title{position:absolute;left:124px;top:20px;height:80px;display:flex;align-items:center;font-size:31px;font-weight:600;letter-spacing:-.2px;white-space:nowrap}
+.ind{position:absolute;top:20px;width:80px;height:80px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--ink)}
+.ind .i{stroke-width:1.7}
+.ind .dot{position:absolute;right:2px;top:2px;width:20px;height:20px;border-radius:50%;background:var(--green)}
+.ind.bad .dot{background:var(--red);animation:blink 1s infinite}
+.ind.busy .dot{animation:pulse .8s infinite}
+.ind.busy{box-shadow:0 0 0 4px rgba(20,194,122,.35)}
+@keyframes blink{50%{opacity:.25}}
+@keyframes pulse{50%{transform:scale(1.35)}}
+.prog{top:20px;height:80px;padding:0 18px 0 18px;gap:14px;text-align:left}
+.prog .pi{font-size:40px;color:var(--blue);stroke-width:1.8}
+.prog b{font-size:19px;font-weight:600;display:block;line-height:1.15;white-space:nowrap}
+.prog b span{color:#7f8c96;font-weight:500}
+.prog small{font-size:15px;color:var(--muted2);display:block;margin-top:2px;white-space:nowrap}
+.setbtn{left:819px;top:20px;width:185px;height:80px;justify-content:center;gap:8px;font-size:17px;font-weight:600;letter-spacing:-.1px}
+.setbtn .i{font-size:30px;color:var(--blue);stroke-width:1.9}
+.locked .back,.locked .prog,.locked .setbtn{background:var(--dis);pointer-events:none}
+.locked .back>*,.locked .prog>*,.locked .setbtn>*{opacity:.45}
+
+/* ---------- циферблат ---------- */
+.dial{position:absolute;left:35px;top:116px;width:348px;height:348px}
+.dial-base,.dial-sheen,.dial-arc{position:absolute;inset:0;border-radius:50%}
+.dial-seg{position:absolute;inset:0;width:348px;height:348px;font-family:inherit}
+.dial-seg path{transition:stroke .3s}
+.dial-sheen{pointer-events:none;opacity:.55}
+.dial:not(.idle) .tri{display:none}
+.dial-base{background:radial-gradient(circle,#a3b0ba 0 127px,#c3cdd5 129px,#cfd8df 151px,#bcc7d0 172px,#aab7c0 174px);
+  box-shadow:0 14px 30px rgba(45,65,85,.22),0 2px 4px rgba(45,65,85,.12),inset 0 2px 2px rgba(255,255,255,.9),inset 0 -4px 8px rgba(60,80,100,.18)}
+.dial-sheen{background:linear-gradient(155deg,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 45%,rgba(70,92,110,.16) 100%);
+  -webkit-mask:radial-gradient(circle,transparent 129px,#000 130px);mask:radial-gradient(circle,transparent 129px,#000 130px)}
+.dial-arc{-webkit-mask:radial-gradient(circle,transparent 127.5px,#000 128.5px,#000 173.5px,transparent 174.5px);mask:radial-gradient(circle,transparent 127.5px,#000 128.5px,#000 173.5px,transparent 174.5px)}
+.cap{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;display:none}
+.dial-marker{position:absolute;inset:0;transition:transform .12s linear}
+.dial-marker .tri{position:absolute;left:50%;top:-20px;margin-left:-10px;border:10px solid transparent;border-bottom:0;border-top:16px solid var(--blue2)}
+.dial-marker .needle{position:absolute;left:50%;top:2px;width:6px;height:44px;margin-left:-3px;border-radius:3px;background:var(--blue2)}
+.dial.mk-orange .tri{border-top-color:var(--orange)}.dial.mk-red .tri{border-top-color:var(--red)}.dial.mk-green .tri{border-top-color:#13b352}
+.dial:not(.idle) .needle{display:none}
+.dial-face{position:absolute;left:62px;top:62px;width:224px;height:224px;border-radius:50%;
+  background:radial-gradient(circle at 46% 34%,#fff 0,#f5f8fa 52%,#dfe7ed 100%);box-shadow:0 16px 30px rgba(30,50,70,.28),inset 0 -5px 12px rgba(0,0,0,.05);
+  display:flex;flex-direction:column;align-items:center;justify-content:center}
+.deg{font-size:58px;font-weight:700;letter-spacing:-1px;line-height:1}
+.deg-sub{font-size:21px;font-weight:500;margin-top:8px;color:var(--ink);white-space:nowrap}
+.sec{position:absolute;font-size:22px;font-weight:500;color:var(--ink);width:24px;height:28px;margin:-14px 0 0 -12px;text-align:center;line-height:28px}
+
+/* ---------- статус ---------- */
+.status{position:absolute;left:20px;top:500px;width:378px;height:64px;display:flex;align-items:center;justify-content:center;gap:18px;font-size:24px;font-weight:600}
+.status .i{font-size:54px;stroke-width:1.6;color:#7a8b98}
+.status.st-fire .i{color:var(--orange)}
+.status.st-air .i{color:var(--blue)} .status.st-ok .i{color:#13b352}
+.status.st-err{color:var(--red)} .status.st-err .i{color:var(--red)}
+.status.st-warn .i{color:#f08a12}
+.status .lnk{font-size:17px;font-weight:600;color:var(--blue);padding:8px 12px;border-radius:10px;background:#fff}
+.status span,.status .lnk{white-space:nowrap}
+.status.st-warn{gap:12px;font-size:21px}
+.status.st-warn .i{font-size:46px}
+.st-fire .i{animation:flick 1.2s infinite ease-in-out}
+@keyframes flick{50%{transform:scale(1.06) translateY(-1px)}}
+.st-air .i{animation:drift 1.4s infinite ease-in-out}
+@keyframes drift{50%{transform:translateX(4px)}}
+
+/* ---------- карточка ---------- */
+.card{position:absolute;left:417px;top:116px;width:587px;height:348px;background:var(--card);border-radius:22px;padding:26px 32px}
+.card h3{font-size:22px;font-weight:600;display:flex;align-items:center;gap:8px}
+.card h3 .sp{flex:1}
+.tag{font-size:16px;font-weight:500;padding:6px 12px;border-radius:10px;background:var(--chip);color:var(--ink);white-space:nowrap}
+.tag.open{background:#e0ccf8;color:#6400de}.tag.closed{background:#d9eaf8;color:var(--blue)}
+.tag.time{background:none;color:var(--blue);font-weight:600;padding:0}
+.mode-grid{display:grid;grid-template-columns:280px 1fr;row-gap:28px;margin-top:19px}
+.mode-grid label{display:block;font-size:19px;color:var(--muted);margin-bottom:2px}
+.mode-grid .v{font-size:40px;font-weight:700;letter-spacing:-.5px;line-height:1.05;white-space:nowrap}
+.mode-grid .v small{font-size:31px;font-weight:400;letter-spacing:0}
+.pills{position:absolute;left:32px;right:32px;bottom:24px;display:flex;gap:12px;align-items:center}
+.pill{height:56px;border-radius:28px;background:var(--chip);display:flex;align-items:center;gap:14px;padding:0 10px 0 20px;font-size:19px;font-weight:500;white-space:nowrap}
+.pill .x{width:36px;height:36px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px}
+.pill .x .i{stroke-width:3}
+.more{width:62px;height:62px;border-radius:50%;border:2.5px solid var(--line);font-size:19px;font-weight:500;display:flex;align-items:center;justify-content:center;flex:none}
+.more.wide{width:auto;padding:0 20px;border-radius:31px;height:56px;gap:8px}
+.live4{display:grid;grid-template-columns:153px 116px 143px 1fr;margin-top:22px}
+.live4 label{font-size:17px;color:var(--muted);display:block;margin-bottom:6px;white-space:nowrap}
+.lv{font-size:32px;font-weight:700;line-height:1.05;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.lv small{font-size:23px;font-weight:400}
+.lv.stack{flex-direction:column;align-items:flex-start;gap:0}
+.dot{width:20px;height:20px;border-radius:50%;background:var(--green);flex:none;display:inline-block}
+.dot.off{background:#c5d0d8}.dot.warn{background:#f0a412}
+.tabs{position:absolute;left:32px;top:188px;display:flex;flex-wrap:wrap;gap:8px;width:252px}
+.tabs button{height:40px;padding:0 13px;border-radius:20px;background:var(--chip);font-size:17px;font-weight:500;white-space:nowrap}
+.tabs button.on{background:#0070e3;color:#fff}
+.stepper{display:flex;align-items:center;gap:8px}
+.pm{width:80px;height:80px;border-radius:50%;border:2.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--blue);flex:none;transition:background .12s}
+.pm:active,.pm.held{background:#eef4f8}
+.pm .i{stroke-width:2.2}
+.sv{width:92px;flex:none;text-align:center}
+.sv label{display:block;font-size:19px;color:var(--muted);margin:0 -40px 6px;white-space:nowrap}
+.sv b{display:block;font-size:31px;font-weight:700;line-height:1;white-space:nowrap}
+.sv small{display:block;font-size:17px;font-weight:600;margin-top:2px}
+.sv.nz b,.sv.nz small{color:var(--blue)}
+.abs{position:absolute}
+.live-closed label{font-size:16px;color:var(--muted);display:block;margin-bottom:6px}
+
+/* ---------- кнопки действий ---------- */
+.act{position:absolute;top:480px;height:100px;border-radius:22px;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;font-size:24px;font-weight:600;letter-spacing:.3px}
+.act small{font-size:19px;font-weight:400;letter-spacing:0;margin-top:3px;opacity:.95}
+.act.start{left:417px;width:587px;background:linear-gradient(100deg,#13a64b,#1bc663)}
+.press::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.28);transform:scaleX(0);transform-origin:left;transition:transform .15s}
+.press.holding::before{transform:scaleX(1);transition:transform var(--ms,1s) linear}
+.press>*{position:relative}
+.act.start.disabled{background:#b9c6cf;cursor:not-allowed}
+.act.stop{left:417px;width:166px;background:linear-gradient(115deg,#d92d2d 30%,#f05454)}
+.act.smooth{left:599px;width:405px;background:linear-gradient(100deg,#0759d8,#1290e0)}
+.act.blue{left:417px;width:587px;background:linear-gradient(100deg,#0759d8,#1290e0)}
+.act.dim{opacity:.5}
+.act:active{filter:brightness(.95)}
+
+/* ---------- ручной режим ---------- */
+.sc{position:absolute;background:var(--card);border-radius:20px;padding:22px 24px}
+.sc h4{font-size:22px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;white-space:nowrap}
+.sc h4 span{font-size:17px;font-weight:500;color:var(--muted)}
+.sc .sub{font-size:17px;color:var(--muted);margin-top:4px}
+.sc .row{display:flex;align-items:center;justify-content:space-between;margin-top:20px}
+.sc .val{text-align:center;width:104px;flex:none;white-space:nowrap}
+.sc .val b{display:block;font-size:30px;font-weight:700;line-height:1}
+#rotV b{font-size:24px}
+.sc .val small{display:block;font-size:17px;font-weight:600;margin-top:3px}
+.sc .val.nz b,.sc .val.nz small{color:var(--blue)}
+.reset0{display:block;width:100%;height:80px;margin-top:22px;border-radius:18px;color:#fff;font-size:22px;font-weight:600;background:linear-gradient(100deg,#0755db,#1480df)}
+.btile{position:absolute;background:var(--card);border-radius:20px;display:flex;align-items:center;gap:16px;padding:0 24px;font-size:21px;font-weight:600;text-align:left;line-height:1.15}
+.btile .i{font-size:34px;color:var(--blue);stroke-width:1.8}
+.btile.on{background:var(--blue);color:#fff}.btile.on .i{color:#fff}
+.btile.held{background:#e8f2fc}
+.btile.col{flex-direction:column;justify-content:center;gap:6px;padding:0;font-size:18px}
+.btile.col .i{font-size:30px}
+.sw{width:70px;height:40px;border-radius:20px;background:var(--line);position:relative;transition:background .2s;flex:none;display:inline-block}
+.sw::after{content:"";position:absolute;left:4px;top:4px;width:32px;height:32px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.sw.on{background:var(--green)}.sw.on::after{transform:translateX(30px)}
+
+/* ---------- программы ---------- */
+.plist{position:absolute;left:20px;top:116px;width:420px;height:464px;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-bottom:4px}
+.pc{background:#fff;border-radius:18px;min-height:76px;padding:12px 18px;display:flex;align-items:center;gap:14px;text-align:left;border:2.5px solid transparent;flex:none}
+.pc.sel{border-color:var(--blue)}
+.pc .slot{width:40px;height:40px;border-radius:12px;background:var(--chip);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;color:var(--muted2);flex:none}
+.pc .nm{flex:1;min-width:0}.pc .nm b{display:block;font-size:20px;font-weight:600}.pc .nm b span{color:#7f8c96;font-weight:500}
+.pc .nm small{font-size:16px;color:var(--muted2)}
+.pc .cur{font-size:13px;font-weight:600;color:var(--blue);background:#e3f0fb;padding:4px 8px;border-radius:8px}
+.pc.empty{color:#93a0aa;font-size:18px;font-weight:500;background:rgba(255,255,255,.5)}
+.pdet{position:absolute;left:456px;width:548px;top:116px;height:464px;background:#fff;border-radius:22px;padding:24px 28px;display:flex;flex-direction:column}
+.pdet h5{font-size:26px;font-weight:700;display:flex;gap:10px;align-items:center}
+.pdet .pg{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;margin-top:18px}
+.pdet .pg label{font-size:16px;color:var(--muted);display:block}
+.pdet .pg b{font-size:24px;font-weight:700;white-space:nowrap}
+.pdet .pg b small{font-size:18px;font-weight:400}
+.pdet .btns{margin-top:auto;display:flex;gap:12px}
+.bt{height:72px;border-radius:18px;font-size:21px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;position:relative;overflow:hidden}
+.bt.green{background:linear-gradient(100deg,#13a64b,#1bc663);color:#fff}
+.bt.blue{background:linear-gradient(100deg,#0759d8,#1290e0);color:#fff}
+.bt.ghost{background:var(--chip);color:var(--ink)}
+.bt.line{border:2.5px solid var(--line);color:var(--blue);background:#fff}
+.bt.off{opacity:.45;pointer-events:none}
+
+/* ---------- редактор ---------- */
+.ring-card{position:absolute;left:20px;top:116px;width:312px;height:464px;background:#fff;border-radius:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-bottom:10px}
+.ring-card svg text{font-family:inherit}
+.ring-cap{text-align:center;margin-top:8px}
+.ring-cap b{display:block;font-size:22px;font-weight:600}
+.ring-cap small{font-size:17px;color:var(--muted)}
+.ptile{position:absolute;left:556px;top:20px;width:448px;height:80px;background:#fff;border-radius:20px;display:flex;align-items:center}
+.ptile.nudge{animation:nudge .5s}
+.pt-main{flex:1;min-width:0;height:100%;display:flex;align-items:center;gap:14px;padding:0 12px 0 18px;text-align:left}
+.pt-ic{font-size:40px;color:var(--blue);stroke-width:1.8}
+.pt-txt{min-width:0}
+.pt-txt b{display:block;font-size:19px;font-weight:600;white-space:nowrap}
+.pt-txt small{display:block;font-size:15px;color:var(--muted2);margin-top:3px;white-space:nowrap}
+.ptile.open .pt-txt small{color:var(--blue)}
+.pt-key{position:relative;width:60px;height:60px;margin-right:14px;border-radius:50%;background:var(--chip);display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--blue);flex:none;transition:background .2s,color .2s}
+.pt-key .i{stroke-width:1.8}
+.ptile.open .pt-key{background:#0070e3;color:#fff}
+.pt-ring{position:absolute;left:-5px;top:-5px;width:70px;height:70px;transform:rotate(-90deg);pointer-events:none}
+.pt-ring circle{fill:none;stroke:var(--blue);stroke-width:3.5;stroke-linecap:round;stroke-dasharray:194.8;stroke-dashoffset:194.8;transition:stroke-dashoffset .15s}
+.ptile.holding .pt-ring circle{stroke-dashoffset:0;transition:stroke-dashoffset 2s linear}
+.title2{position:absolute;left:124px;top:20px;height:80px;display:flex;flex-direction:column;justify-content:center;white-space:nowrap}
+.title2 b{font-size:28px;font-weight:600;letter-spacing:-.2px;line-height:1.1}
+.title2 small{font-size:16px;color:var(--muted2);margin-top:4px}
+.gkey{position:absolute;left:924px;top:20px;width:80px;height:80px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:36px;color:var(--blue);transition:background .2s,color .2s}
+.gkey .i{stroke-width:1.7}
+.gkey.open{background:#0070e3;color:#fff}
+.gkey .pt-ring{left:-5px;top:-5px;width:90px;height:90px}
+.gkey .pt-ring circle{stroke-dasharray:257.6;stroke-dashoffset:257.6}
+.gkey.holding .pt-ring circle{stroke-dashoffset:0;transition:stroke-dashoffset 2s linear}
+.gkey.nudge{animation:nudge .5s}
+.tip{position:absolute;right:20px;top:112px;background:#303f4a;color:#fff;font-size:16px;font-weight:500;padding:10px 14px;border-radius:12px;white-space:nowrap;
+  opacity:0;transform:translateY(-4px);transition:opacity .2s,transform .2s;pointer-events:none;z-index:6}
+.tip::before{content:"";position:absolute;right:31px;top:-6px;border:6px solid transparent;border-top:0;border-bottom-color:#303f4a}
+.tip.show{opacity:1;transform:none}
+.lockbtn{position:absolute;left:20px;top:512px;width:312px;height:68px;border-radius:18px;background:#fff;display:flex;align-items:center;justify-content:center;gap:12px;font-size:19px;font-weight:600;overflow:hidden}
+.lockbtn .i{font-size:28px;color:var(--blue)}
+.lockbtn .lk{text-align:left;line-height:1.2}.lockbtn .lk b{display:block;font-size:19px;font-weight:600}.lockbtn .lk small{font-size:15px;font-weight:500;color:var(--muted)}
+.lockbtn.open{background:#e3f0fb;color:var(--blue)}
+.lockbtn.nudge{animation:nudge .5s}
+@keyframes nudge{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.etabs{position:absolute;left:348px;top:116px;display:flex;gap:8px}
+.etabs button{height:48px;padding:0 20px;border-radius:24px;background:#fff;font-size:18px;font-weight:600;color:var(--muted2)}
+.etabs button.on{background:#0070e3;color:#fff}
+.tbl{position:absolute;left:348px;top:176px;width:656px;height:320px;background:#fff;border-radius:22px;overflow:hidden;display:flex;flex-direction:column}
+.tbl .thead,.tbl .tr{display:grid;align-items:center}
+.tbl .thead{height:44px;font-size:15px;font-weight:600;color:var(--muted);border-bottom:1px solid #e6edf2;flex:none}
+.tbl .thead button{height:44px;font-size:16px;font-weight:600;color:var(--muted2)}
+.tbl .thead button.sel{color:var(--blue);background:var(--selcol)}
+.tbl .tbody{overflow:auto;flex:1}
+.tbl .tr{min-height:46px;border-bottom:1px solid #eef2f5}
+.tbl .tr:last-child{border-bottom:0}
+.tbl .lb{padding:6px 10px 6px 20px;font-size:16px;line-height:1.2}
+.tbl .lb small{color:var(--muted);font-size:14px;margin-left:4px}
+.tbl .cell{height:46px;font-size:18px;font-weight:600;display:flex;align-items:center;justify-content:center;position:relative}
+.tbl .cell.sel{background:var(--selcol)}
+.tbl .cell.span{justify-content:flex-start;padding-left:16px;gap:12px}
+.tbl .cell.chg{color:var(--blue)}
+.tbl .cell.chg::after{content:"";position:absolute;right:8px;top:8px;width:7px;height:7px;border-radius:50%;background:var(--blue)}
+.tbl .grp{padding:14px 20px 6px;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8a97a1;border-bottom:1px solid #eef2f5}
+.tbl.ro .cell{color:var(--ink)}
+.tbl:not(.ro) .cell:not(.na){cursor:pointer}
+.tbl:not(.ro) .cell:not(.na):active{background:#dcebfa}
+.enumsw{display:flex;background:var(--chip);border-radius:12px;padding:3px}
+.enumsw span{padding:6px 12px;border-radius:9px;font-size:15px;font-weight:600;color:var(--muted2)}
+.enumsw span.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.efoot{position:absolute;top:512px;height:68px}
+
+/* ---------- листы ---------- */
+.veil{position:absolute;inset:0;background:rgba(32,44,54,.45);display:flex;align-items:center;justify-content:center;animation:fade .18s;z-index:8}
+@keyframes fade{from{opacity:0}}
+.veil.still,.veil.still .sheet,.standby.still{animation:none}
+.sheet{background:var(--bg);border-radius:26px;padding:24px;position:relative;animation:rise .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{transform:translateY(24px);opacity:0}}
+.sheet h2{font-size:26px;font-weight:600;margin:2px 4px 16px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.sheet h2 small{display:block;font-size:16px;font-weight:500;color:var(--muted);margin-top:2px}
+.sheet .close{width:56px;height:56px;border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;flex:none}
+.olist{display:flex;flex-direction:column;gap:10px}
+.orow{background:#fff;border-radius:18px;height:68px;display:flex;align-items:center;justify-content:space-between;padding:0 20px 0 24px;font-size:20px;font-weight:500;width:100%;text-align:left}
+.orow small{display:block;font-size:15px;color:var(--muted);font-weight:400;margin-top:2px}
+.kp-disp{background:#fff;border-radius:18px;height:84px;display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+.kp-disp b{font-size:44px;font-weight:700;letter-spacing:-.5px}
+.kp-disp b.err{color:var(--red)}
+.kp-disp span{font-size:22px;color:var(--muted)}
+.kp-lim{display:flex;justify-content:space-between;font-size:15px;color:var(--muted);margin:8px 6px 12px}
+.kp-lim .e{color:var(--red);font-weight:600}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.keys button{height:58px;border-radius:14px;background:#fff;font-size:24px;font-weight:600}
+.keys button.fn{background:var(--chip);font-size:18px}
+.kp-act{display:flex;gap:10px;margin-top:12px}
+.kp-act .bt{flex:1;height:64px;font-size:19px}
+.mseg{display:flex;flex-wrap:wrap;gap:8px}
+.mseg button{height:52px;padding:0 18px;border-radius:14px;background:#fff;font-size:19px;font-weight:600}
+.mseg button.on{background:#0070e3;color:#fff}
+.mtiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.mtile{background:#fff;border-radius:18px;padding:14px 20px;text-align:left}
+.mtile label{display:block;font-size:16px;color:var(--muted)}
+.mtile b{font-size:30px;font-weight:700}.mtile b small{font-size:20px;font-weight:400;color:var(--muted)}
+.mtile.chg b{color:var(--blue)}
+
+/* ---------- ожидание ---------- */
+.standby{position:absolute;inset:0;z-index:9;animation:fade .3s;cursor:pointer;
+  background:radial-gradient(ellipse 520px 380px at 512px 250px,#eef3f7 0,rgba(238,243,247,0) 100%),var(--bg)}
+.standby .dial{left:338px;top:56px;transform:scale(.92);transform-origin:50% 50%}
+.standby .dial-face{gap:6px}
+.standby .dial-face .i{font-size:58px;color:#8fa0ad;stroke-width:1.6}
+.standby .dial-face .ph{font-size:15px;font-weight:500;color:var(--muted)}
+.standby #sbSeg{transition:opacity .1s}
+.standby .sb-fx{position:absolute;inset:0;width:1024px;height:600px;pointer-events:none;overflow:visible}
+.standby .sb-txt{position:absolute;left:0;right:0;top:478px;text-align:center}
+.standby .sb-txt b{display:block;font-size:26px;font-weight:600;color:var(--ink);letter-spacing:-.2px}
+.standby .sb-txt span{display:block;font-size:15px;color:var(--muted);margin-top:6px}
+/* ---------- шапка «Сварки» в границах карточки ---------- */
+.setbtn{left:839px;width:165px}
+
+/* ---------- типографика: шкала В — цифры крупно, подписи и единицы тише ---------- */
+.title{font-size:26px}
+.card h3{font-size:18px}
+.tag{font-size:14px;padding:5px 10px}
+.mode-grid{row-gap:34px;margin-top:26px}
+.mode-grid label{font-size:15px;margin-bottom:4px}
+.mode-grid .v{font-size:36px}
+.mode-grid .v small{font-size:20px;color:var(--muted);font-weight:500}
+.pill{font-size:16px;height:48px;padding:0 8px 0 16px;gap:12px}
+.pill .x{width:32px;height:32px;font-size:16px}
+.more{width:48px;height:48px;font-size:16px;border-width:2px}
+.more.wide{height:48px;padding:0 16px}
+.status{font-size:19px;gap:14px}.status .i{font-size:44px}
+.status.st-warn{font-size:19px}.status.st-warn .i{font-size:40px}
+.act{font-size:22px}.act small{font-size:16px}
+.deg{font-size:54px}.deg-sub{font-size:17px;color:var(--muted)}
+.prog b{font-size:16px}.prog small{font-size:13px}
+.setbtn{font-size:15px}
+.live4{margin-top:26px}
+.live4 label,.live-closed label{font-size:14px}
+.lv{font-size:30px}.lv small{font-size:17px;color:var(--muted);font-weight:500}
+.tabs button{font-size:15px;height:36px;padding:0 13px}
+.sv label{font-size:15px}.sv b{font-size:28px}.sv small{font-size:14px;color:var(--muted)}
+.sv.nz small{color:var(--blue)}
+.sc h4{font-size:19px}.sc h4 span{font-size:15px}.sc .sub{font-size:15px}
+.sc .val b{font-size:28px}.sc .val small{font-size:14px;color:var(--muted)}
+.sc .val.nz small{color:var(--blue)}
+#rotV b{font-size:24px}
+.reset0{font-size:19px;height:72px}
+.btile{font-size:18px}.btile.col{font-size:16px}
+.pc .slot{font-size:15px}.pc .nm b{font-size:18px}.pc .nm small{font-size:14px}
+.pdet h5{font-size:22px}.pdet .pg label{font-size:14px}.pdet .pg b{font-size:22px}.pdet .pg b small{font-size:15px;color:var(--muted);font-weight:500}
+.bt{font-size:19px}
+.title2 b{font-size:26px}.title2 small{font-size:14px}
+.ring-cap b{font-size:19px}.ring-cap small{font-size:15px}
+.etabs button{font-size:16px;height:44px}
+.tbl .thead,.tbl .thead button{font-size:14px}
+.tbl .lb{font-size:15px}.tbl .lb small{font-size:13px}
+.tbl .cell{font-size:17px}
+.sheet h2{font-size:22px}.sheet h2 small{font-size:14px}
+.orow{font-size:18px;height:64px}.orow small{font-size:14px}
+.kp-disp b{font-size:40px}.kp-disp span{font-size:19px}
+.keys button{font-size:22px}.keys button.fn{font-size:16px}
+.mseg button{font-size:17px;height:48px}
+.mtile label{font-size:14px}.mtile b{font-size:28px}.mtile b small{font-size:17px}
+.tip{font-size:15px}
+.sv{width:112px}
+.sv .num{display:flex;align-items:baseline;justify-content:center;gap:4px;white-space:nowrap}
+.sv .num small{display:inline;margin-top:0}
+.tabs{width:220px}
+.lv{font-size:28px}
+.sv b{font-size:28px}
+.tbl .grp.all{display:flex;align-items:center;gap:8px;background:#eef3f7;color:#5f6e7a;border-top:1px solid #e3eaef;padding:12px 20px 8px}
+.tbl .grp.all .i{font-size:16px;color:#7f8f9b;stroke-width:2}
+.tbl .tr.com{background:#f4f7fa}
+.tbl .tr.com .lb{color:#4a5862}
+.tabs{top:180px}
+.card.sum .mode-grid{margin-top:36px;row-gap:46px}
+.pdet .pg{gap:24px 20px;margin-top:24px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- циферблат без лишних теней: плоско и чисто ---------- */
+.dial-base{background:#cbd5dc!important;box-shadow:none!important}
+.dial-sheen{display:none!important}
+.dial-face{background:#fff!important;box-shadow:none!important}
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+  <span class="ver">Вариант 2</span>
+  <div class="grp"><span class="lbl">Головка</span>
+    <div class="seg" id="segHead"><button data-head="open">Открытая</button><button data-head="closed">Закрытая</button></div>
+  </div>
+  <div class="grp"><span class="lbl">Скорость демо</span>
+    <div class="seg" id="segSpeed"><button data-speed="1">×1</button><button data-speed="10">×10</button><button data-speed="30">×30</button></div>
+  </div>
+  <div class="grp"><span class="lbl">Сценарий</span>
+    <div class="seg" id="segScn"><button data-scn="ok">Норма</button><button data-scn="gas">Нет газа</button><button data-scn="water">Нет воды</button></div>
+  </div>
+  <button class="reset" id="btnReset">Сброс</button>
+  <span class="hint">H — скрыть панель</span>
+</div>
+
+<div class="stage" id="stage">
+  <div class="rig" id="rig"><div class="device" id="device"><div class="screen" id="screen"></div></div></div>
+  <div class="caption" id="caption"></div>
+</div>
+
+<script>
+/* ================= данные программ — по экранам реальной панели ================= */
+const MODELS = ['ORC40','ORC80','ORC118','ORC170','5/10H','MINI','ORO-130'];
+const headOf = m => m==='ORO-130' ? 'open' : 'closed';
+const BASE_COMMON = {
+  headCode:46, sectors:4, gasBefore:10, gasAfter:10, warmCur:90, warmTime:2.0, decay:8.0,
+  ret0:true, retSpeed:200, liftAfter:false, liftAfterV:1.0, liftShort:false, liftShortV:1.0,
+  wireDelay:0.1, wireStep:10, wireHold:0.1, backTime:0.1, oscDelay:0.1, autoSwitch:false, edgeLock:false,
+  avc:false, avcBoost:0.5, avcAcc:0.1, trackDelay:0.1, curMode:'Импульс', secCur:10, rotBoost:10,
+};
+function mkProg(o){
+  const n=4, fill=v=>Array.isArray(v)?v.slice():Array(n).fill(v);
+  return {
+    id:o.id, slot:o.slot, code:o.code, model:o.model, d:o.d, t:o.t,
+    common:Object.assign({}, BASE_COMMON, o.common||{}),
+    sec:{
+      pulseHi:fill(o.pulseHi), pulseHiT:fill(o.pulseHiT??0.15), base:fill(o.base), baseT:fill(o.baseT??0.30),
+      speed:fill(o.speed), wire:fill(o.wire??0), oscW:fill(o.oscW??[60,60,25,25]), oscV:fill(o.oscV??1800),
+      oscOff:fill(o.oscOff??0.1), dwellL:fill(o.dwellL??0.60), dwellR:fill(o.dwellR??0.60),
+      avcV:fill(o.avcV??10.7), avcSpd:fill(o.avcSpd??120),
+    },
+  };
+}
+const SEED = [
+  mkProg({id:'p12',slot:1,code:'П12',model:'ORC80',d:57.0,t:3.0,pulseHi:[150,147,144,141],base:60,speed:90}),
+  mkProg({id:'p14',slot:2,code:'П14',model:'ORC80',d:57.0,t:4.0,pulseHi:[165,162,158,154],base:65,speed:80,common:{gasAfter:12}}),
+  mkProg({id:'p05',slot:3,code:'П05',model:'ORC40',d:25.0,t:2.0,pulseHi:[95,93,91,89],base:40,speed:120,common:{gasBefore:8,gasAfter:8}}),
+  mkProg({id:'p22',slot:4,code:'П22',model:'ORC118',d:89.0,t:4.5,pulseHi:[178,174,170,166],base:70,speed:60,common:{gasBefore:12,gasAfter:12}}),
+  mkProg({id:'p31',slot:5,code:'П31',model:'ORO-130',d:108.0,t:6.0,pulseHi:[170,168,165,162],base:75,speed:0.25,wire:[500,500,520,520],avcV:10.8,common:{avc:true}}),
+  mkProg({id:'p33',slot:6,code:'П33',model:'ORO-130',d:114.0,t:8.0,pulseHi:[182,179,176,173],base:80,speed:0.22,wire:[540,540,560,560],avcV:11.0,common:{avc:true,gasAfter:12}}),
+];
+const SLOTS = 8;
+
+/* описание параметров: подписи и пределы как на старой панели (MIN/MAX) */
+const SEC = {
+  pulseHi:{l:'Ток высокого импульса',u:'А',min:5,max:300,dec:0},
+  pulseHiT:{l:'Время высокого импульса',u:'с',min:0.01,max:2,dec:2},
+  base:{l:'Рабочий ток',u:'А',min:5,max:300,dec:0},
+  baseT:{l:'Время рабочего тока',u:'с',min:0.01,max:2,dec:2},
+  speed:{l:'Скорость сварки',u:'об/мин',min:0.01,max:200,dec:0},
+  wire:{l:'Подача проволоки',u:'мм/мин',min:0,max:3000,dec:0,open:1},
+  oscW:{l:'Ширина колебаний',u:'мм',min:0,max:200,dec:0,open:1},
+  oscV:{l:'Скорость колебаний',u:'мм/мин',min:100,max:5000,dec:0,open:1},
+  oscOff:{l:'Смещение от центра',u:'мм',min:-5,max:5,dec:1,open:1},
+  dwellL:{l:'Задержка колебаний влево',u:'с',min:0,max:5,dec:2,open:1},
+  dwellR:{l:'Задержка колебаний вправо',u:'с',min:0,max:5,dec:2,open:1},
+  avcV:{l:'Слежение по напряжению',u:'В',min:5,max:30,dec:1},
+  avcSpd:{l:'Слежение по скорости',u:'мм/мин',min:10,max:500,dec:0},
+};
+const COM = {
+  gasBefore:{l:'Продувка газа перед сваркой',u:'с',min:0,max:60,dec:1},
+  gasAfter:{l:'Продувка газа после сварки',u:'с',min:0,max:60,dec:1},
+  warmCur:{l:'Сила тока прогрева материала',u:'А',min:0,max:300,dec:0},
+  warmTime:{l:'Время прогрева материала',u:'с',min:0,max:20,dec:1},
+  decay:{l:'Время затухания',u:'с',min:0,max:30,dec:1},
+  ret0:{l:'Возврат в точку 0 после сварки',type:'bool'},
+  retSpeed:{l:'Скорость возврата',u:'',min:10,max:999,dec:0},
+  liftAfter:{l:'Подъём горелки после сварки',type:'bool'},
+  liftAfterV:{l:'Подъём после сварки, значение',u:'',min:0,max:10,dec:1},
+  liftShort:{l:'Подъём при замыкании',type:'bool'},
+  liftShortV:{l:'Подъём при замыкании, значение',u:'',min:0,max:10,dec:1},
+  wireDelay:{l:'Задержка подачи проволоки',u:'с',min:0,max:5,dec:1,open:1},
+  wireStep:{l:'Шаг подачи проволоки',u:'%',min:1,max:50,dec:0,open:1},
+  wireHold:{l:'Время задержки проволоки',u:'с',min:0,max:5,dec:1,open:1},
+  backTime:{l:'Back time',u:'с',min:0,max:5,dec:1,open:1},
+  oscDelay:{l:'Задержка колебаний',u:'с',min:0,max:5,dec:1,open:1},
+  autoSwitch:{l:'Автоматическое переключение',type:'bool',open:1},
+  edgeLock:{l:'Фиксатор кромки',type:'bool',open:1},
+  avc:{l:'Автоматическое слежение высоты дуги',type:'bool'},
+  avcBoost:{l:'Увеличение напряжения',u:'В',min:0,max:5,dec:1},
+  avcAcc:{l:'Точность слежения',u:'В',min:0.1,max:2,dec:1},
+  trackDelay:{l:'Задержка отслеживания',u:'с',min:0,max:5,dec:1},
+  curMode:{l:'Сила тока',type:'enum',opts:['Импульс','Постоянный']},
+  secCur:{l:'Вторичный ток',u:'А',min:0,max:100,dec:0},
+  rotBoost:{l:'Увеличение скорости вращения',u:'%',min:1,max:50,dec:0},
+  headCode:{l:'Код сварочной головки',u:'',min:1,max:99,dec:0},
+  sectors:{l:'Количество секторов',u:'',min:2,max:6,dec:0},
+};
+/* вкладки редактора — в той же логике, что вкладки старой панели */
+const ETABS = [
+  {id:'cur', l:'Ток и вращение', rows:[['s','pulseHi'],['s','pulseHiT'],['s','base'],['s','baseT'],['s','speed'],['s','wire']]},
+  {id:'osc', l:'Колебания', open:1, rows:[['s','oscW'],['s','oscV'],['s','oscOff'],['s','dwellL'],['s','dwellR'],['c','oscDelay'],['c','autoSwitch'],['c','edgeLock']]},
+  {id:'avc', l:'Слежение за дугой', rows:[['c','avc'],['s','avcV'],['s','avcSpd'],['c','avcBoost'],['c','avcAcc'],['c','trackDelay']]},
+  {id:'com', l:'Общие', rows:[['g','Газ'],['c','gasBefore'],['c','gasAfter'],['g','Прогрев'],['c','warmCur'],['c','warmTime'],
+     ['g','Завершение сварки'],['c','decay'],['c','ret0'],['c','retSpeed'],['c','liftAfter'],['c','liftAfterV'],['c','liftShort'],['c','liftShortV'],
+     ['g','Проволока'],['c','wireDelay'],['c','wireStep'],['c','wireHold'],['c','backTime'],
+     ['g','Ток и вращение'],['c','curMode'],['c','secCur'],['c','rotBoost'],
+     ['g','Головка'],['c','headCode'],['c','sectors']]},
+];
+/* «Функции»: реальные переключатели программы */
+const FUNCS = [
+  {k:'ret0', chip:'Возврат в 0', hint:'После сварки горелка возвращается в точку 0'},
+  {k:'avc', chip:'Слежение за дугой', hint:'Слежение по напряжению и по скорости'},
+  {k:'edgeLock', chip:'Фиксатор кромки', hint:'', open:1},
+  {k:'autoSwitch', chip:'Автопереключение', hint:'', open:1},
+  {k:'liftAfter', chip:'Подъём горелки', hint:'Значение подъёма задаётся в программе'},
+  {k:'liftShort', chip:'Подъём при замыкании', hint:'Значение подъёма задаётся в программе'},
+];
+
+/* ================= иконки ================= */
+const P = {
+  back:'<path d="M15 4.5l-7.5 7.5 7.5 7.5"/>',
+  gas:'<path d="M10.2 2.5h3.6M12 2.5v3"/><path d="M9 21.5V9.2a3 3 0 0 1 6 0v12.3z"/>',
+  drop:'<path d="M12 3.2c3.7 4.4 6.2 7.8 6.2 10.9a6.2 6.2 0 0 1-12.4 0c0-3.1 2.5-6.5 6.2-10.9z"/>',
+  prog:'<rect x="5.5" y="5.5" width="8" height="8" rx="2.2"/><rect x="10.5" y="10.5" width="8" height="8" rx="2.2"/><path d="M3 10.5A9 9 0 0 1 8.5 3.6M21 13.5a9 9 0 0 1-5.5 6.9"/><path d="M8.6 1.8l.2 2-2 .4M15.4 22.2l-.2-2 2-.4"/>',
+  gear:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  joy:'<circle cx="12" cy="5.5" r="2.5"/><path d="M12 8v5"/><path d="M8.5 16.5l1-3.5h5l1 3.5"/><rect x="3.5" y="16.5" width="17" height="4.5" rx="1.5"/>',
+  hand:'<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11.5v-7a1.5 1.5 0 0 1 3 0V12"/><path d="M14 11.5V6.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-.6a6 6 0 0 1-4.6-2.2L3.6 15.9a1.5 1.5 0 0 1 2.2-2L8 16"/>',
+  check:'<circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5"/>',
+  flame:'<path d="M12 22c-4 0-7-2.8-7-6.6 0-3.3 2.3-5.3 3.6-7.6.6 1.4 1.4 2.2 2.4 2.6C11 7 12.5 4.3 15 2c.3 3.4 4 6.7 4 12.2C19 18.9 16 22 12 22z"/><path d="M12 22c-1.8 0-3-1.3-3-3 0-1.8 1.6-2.8 3-5 1.4 2.2 3 3.2 3 5 0 1.7-1.2 3-3 3z"/>',
+  wind:'<path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>',
+  x:'<path d="M7 7l10 10M17 7L7 17"/>',
+  minus:'<path d="M5 12h14"/>', plus:'<path d="M12 5v14M5 12h14"/>',
+  chevL:'<path d="M14.5 6l-6 6 6 6"/>', chevR:'<path d="M9.5 6l6 6-6 6"/>',
+  ccw:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  cw:'<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  alert:'<circle cx="12" cy="12" r="10"/><path d="M12 7v6M12 16.5v.3"/>',
+  lock:'<rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>',
+  unlock:'<rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 7.7-1.5"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 11v6M12 7.5v.3"/>',
+  moon:'<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  sliders:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  retract:'<path d="M12 21V8"/><path d="M7.5 12.5L12 8l4.5 4.5"/><path d="M6 4h12"/>',
+  link:'<path d="M4 12h16"/><path d="M4 7v10M20 7v10"/>',
+  edit:'<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  back2:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+};
+const ic = (n,c='') => `<svg class="i ${c}" viewBox="0 0 24 24">${P[n]}</svg>`;
+
+/* ================= состояние ================= */
+const RUNNING = ['prepurge','warm','welding','decay','postpurge','returning'];
+const clone = o => JSON.parse(JSON.stringify(o));
+let S;
+function freshState(head){
+  const progs = clone(SEED);
+  const p = progs.find(x => headOf(x.model) === (head||'open'));
+  return {
+    screen:'weld', sheet:null, progs, progId:p.id, pSel:p.id,
+    phase:'ready', speed:S?S.speed:10, scn:'ok', standby:false,
+    torch:0, absBase:74,
+    weldT:0, phaseT:0, stopAngle:0, smoothK:1, completed:false, err:null, sum:null, acc:{n:0,cur:0,volt:0},
+    corr:{cur:0, arc:0, osc:0, wire:0, spd:0}, tab:'cur',
+    jog:{wire:0, osc:0, arc:0, cur:0, spd:0}, retracting:false,
+    test:{gas:0, water:0},
+    ed:null, kp:null,
+  };
+}
+S = freshState('open');
+
+/* ================= утилиты ================= */
+const $ = id => document.getElementById(id);
+const fx = (v,d) => (Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toFixed(d);
+const f1 = v => fx(v,1), f2 = v => fx(v,2);
+const mmss = s => { s=Math.max(0,Math.round(s)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
+const mmss0 = s => { s=Math.max(0,Math.floor(s)); return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; };
+const signed = (v,d=1) => (v>0?'+':'') + fx(v,d);
+const norm = a => ((a%360)+360)%360;
+const avg = a => a.reduce((x,y)=>x+y,0)/a.length;
+const prog = () => S.progs.find(p => p.id===S.progId);
+const isOpenP = p => headOf(p.model)==='open';
+const isOpen = () => isOpenP(prog());
+const nSec = () => prog().common.sectors;
+const gasOk = () => S.scn!=='gas', waterOk = () => S.scn!=='water';
+const torchZero = () => Math.abs(norm(S.torch+180)-180) < 0.05;
+const speedDec = p => isOpenP(p)?2:0;
+/* расчётное время оборота — для подсказки «время прохода / шва» */
+const revTime = p => isOpenP(p) ? 64/avg(p.sec.speed) : 11520/avg(p.sec.speed);
+
+let capT;
+function note(msg){
+  const c=$('caption'); c.innerHTML=`${ic('info')}<span>${msg}</span>`; c.classList.add('show');
+  clearTimeout(capT); capT=setTimeout(()=>c.classList.remove('show'),4200);
+}
+
+/* ================= живые значения ================= */
+function weldAngle(){
+  if(['ready','prepurge','warm'].includes(S.phase)) return 0;
+  if(S.phase==='done') return 360;
+  return Math.min(360, S.weldT/revTime(prog())*360);
+}
+const sectorIdx = a => Math.min(nSec()-1, Math.floor(a/(360/nSec())));
+function live(){
+  const p=prog(), c=p.common, ph=S.phase, j=a=>(Math.random()-.5)*a;
+  const moving = ph==='welding'||ph==='decay';
+  const arc = ph==='warm'||ph==='welding'||ph==='decay';
+  const k = ph==='decay'?S.smoothK:1;
+  const i = sectorIdx(weldAngle());
+  let cur=0;
+  if(ph==='warm') cur=c.warmCur+j(2);
+  else if(arc) cur=(c.curMode==='Импульс'?p.sec.pulseHi[i]:p.sec.base[i])*(1+S.corr.cur/100)*k + j(2.5);
+  const volt = arc ? (p.sec.avcV[i] + S.corr.arc + j(.1))*Math.max(k,.6) : 0;
+  return {
+    arc, cur:Math.max(0,cur), volt,
+    rpm: moving ? p.sec.speed[i]*(1+S.corr.spd/100)*(isOpenP(p)?0.92:1) : 0,
+    wire: moving ? p.sec.wire[i]*(1+S.corr.wire/100)*k : 0,
+  };
+}
+
+/* ================= цикл сварки ================= */
+function go(phase){ S.phase=phase; S.phaseT=0; render(); }
+function startWeld(){
+  if(!gasOk()||!waterOk()||!torchZero()) return;
+  S.weldT=0; S.completed=false; S.err=null; S.smoothK=1; S.acc={n:0,cur:0,volt:0};
+  S.corr={cur:0,arc:0,osc:0,wire:0,spd:0};
+  go('prepurge');
+}
+function stopNow(){
+  if(S.phase==='prepurge'||S.phase==='warm'){ go('ready'); note('Запуск отменён до начала сварки'); return; }
+  if(S.phase==='welding'||S.phase==='decay'){ S.stopAngle=weldAngle(); go('postpurge'); note('СТОП: дуга погашена сразу, затем продувка газом'); return; }
+  if(S.phase==='postpurge') note('Идёт продувка после сварки — защищает шов от окисления');
+}
+function smoothStop(){
+  if(S.phase==='prepurge'||S.phase==='warm'){ go('ready'); note('Запуск отменён до начала сварки'); return; }
+  if(S.phase==='welding'){ go('decay'); note(`Плавное гашение: ток снижается за время затухания (${f1(prog().common.decay)} с)`); return; }
+  if(S.phase==='postpurge') note('Идёт продувка после сварки — защищает шов от окисления');
+}
+function finishSummary(){
+  const a=S.acc;
+  S.sum={time:S.weldT, cur:a.n?a.cur/a.n:0, volt:a.n?a.volt/a.n:0, angle:S.completed?360:S.stopAngle};
+}
+function errorStop(msg){ S.err=msg; S.stopAngle=weldAngle(); finishSummary(); S.completed=false; go('aborted'); note(msg); }
+function returnZero(){
+  if(S.phase==='aborted'||S.phase==='done'){ S.torch=S.phase==='done'?0:S.stopAngle; if(S.torch===0){ go('ready'); return; } go('returning'); return; }
+  if(S.phase==='ready'){ if(torchZero()) return; S.torch=norm(S.torch); go('returning'); }
+}
+
+let last=performance.now();
+function tick(now){
+  const dtR=Math.min(.1,(now-last)/1000); last=now;
+  const dt=dtR*S.speed, p=prog(), c=p.common;
+  S.phaseT+=dt;
+  for(const k of ['gas','water']) if(S.test[k]>0){ S.test[k]-=dtR; if(S.test[k]<=0){ S.test[k]=0; render(); } }
+  if(['prepurge','warm','welding','decay'].includes(S.phase) && (!gasOk()||!waterOk()))
+    errorStop(!gasOk()?'Аварийная остановка: нет давления газа':'Аварийная остановка: нет протока охлаждения');
+  switch(S.phase){
+    case 'prepurge': if(S.phaseT>=c.gasBefore) go(c.warmTime>0?'warm':'welding'); break;
+    case 'warm': if(S.phaseT>=c.warmTime) go('welding'); break;
+    case 'welding':{
+      S.weldT+=dt; const L=live(); if(L.arc){ S.acc.n++; S.acc.cur+=L.cur; S.acc.volt+=L.volt; }
+      if(S.weldT>=revTime(p)){ S.weldT=revTime(p); S.completed=true; go('decay'); }
+      break;}
+    case 'decay':
+      if(!S.completed) S.weldT+=dt*0.5;
+      S.smoothK=Math.max(0,1-S.phaseT/Math.max(.1,c.decay));
+      if(S.phaseT>=c.decay){ S.stopAngle=weldAngle(); go('postpurge'); }
+      break;
+    case 'postpurge':
+      if(S.phaseT>=c.gasAfter){ finishSummary(); go(S.completed?'done':'aborted');
+        if(!S.completed && c.ret0) setTimeout(()=>{ if(S.phase==='aborted'){ returnZero(); note('Возврат в точку 0 после сварки включён в программе'); } }, 900); }
+      break;
+    case 'returning':{
+      const step=c.retSpeed*0.6*dtR;
+      S.torch=Math.max(0,S.torch-step); if(S.torch<=0){ S.torch=0; go('ready'); }
+      break;}
+  }
+  sync();
+  requestAnimationFrame(tick);
+}
+
+/* ================= общие куски разметки ================= */
+function header(title, kind){
+  const p=prog(), cl=!isOpen();
+  // позиции — как в макетах: у закрытой головки индикаторы смещены, чип программы уже
+  // экран «Сварка»: ряд ровно по ширине карточки (417–1004), промежутки 16
+  const L = kind==='weld' ? {g:417,w:513,p:609,pw:214}
+                          : (cl?{g:593,w:689,p:785,pw:219}:{g:581,w:677,p:773,pw:231});
+  const gas=`<button class="ind ${gasOk()?'':'bad'} ${S.test.gas>0?'busy':''}" data-a="ind-gas" style="left:${L.g}px">${ic('gas')}<i class="dot"></i></button>`;
+  const wat=`<button class="ind ${waterOk()?'':'bad'} ${S.test.water>0?'busy':''}" data-a="ind-water" style="left:${L.w}px">${ic('drop')}<i class="dot"></i></button>`;
+  const pr=`<button class="tile prog" data-a="programs" style="left:${L.p}px;width:${L.pw}px">${ic('prog','pi')}<div><b><span>${p.code}</span> ${p.model}</b><small>Ø${f1(p.d)} × ${f1(p.t)} мм</small></div></button>`;
+  return `<button class="tile back" data-a="back">${ic('back')}</button><div class="title">${title}</div>${gas}${wat}${pr}`+
+    (kind==='weld'?`<button class="tile setbtn" data-a="manual">${ic('joy')}<span>Ручной режим</span></button>`:'');
+}
+/* кольцо из секций: заполненные — цветом состояния, остальные светлые; номер — на секции */
+const SEG_PAL={weld:['#f7d434','#fc7b1a'],purge:['#3d9df0','#0b6fd6'],done:['#2fd07a','#119e4b'],abort:['#f2a7a7','#d94a4a']};
+function mixHex(a,b,t){ const h=x=>[1,3,5].map(i=>parseInt(x.slice(i,i+2),16)); const A=h(a),B=h(b); return '#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join(''); }
+function segRing(n,ang,mode){
+  const C=174,R=151,W=46,g=1.7, pal=SEG_PAL[mode];
+  const P=(a,r)=>[C+r*Math.sin(a*Math.PI/180),C-r*Math.cos(a*Math.PI/180)];
+  const arc=(a0,a1)=>{ const [x0,y0]=P(a0,R),[x1,y1]=P(a1,R); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${a1-a0>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+  let out='';
+  for(let i=0;i<n;i++){
+    const a0=360/n*i+g, a1=360/n*(i+1)-g, mid=360/n*(i+.5);
+    out+=`<path d="${arc(a0,a1)}" stroke="#f5f8fa" stroke-width="${W}" fill="none"/>`;
+    let filled=false;
+    if(pal){ const end=Math.min(a1,ang); if(end>a0+0.05){ out+=`<path d="${arc(a0,end)}" stroke="${mixHex(pal[0],pal[1],n>1?i/(n-1):1)}" stroke-width="${W}" fill="none"/>`; filled=ang>=mid; } }
+    const [lx,ly]=P(mid,R), rot=(mid>90&&mid<270)?mid+180:mid;
+    out+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" transform="rotate(${rot} ${lx.toFixed(1)} ${ly.toFixed(1)})" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="${filled?'#fff':'#8a97a1'}">${String(i+1).padStart(2,'0')}</text>`;
+  }
+  return out;
+}
+/* тонкое внутреннее кольцо с рисками вокруг центра */
+const TICK_RING = (()=>{ const C=174; let t=`<circle cx="${C}" cy="${C}" r="119.5" fill="none" stroke="#b7c3cc" stroke-width="15"/>`+
+  `<circle cx="${C}" cy="${C}" r="127" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1"/>`;
+  for(let i=0;i<72;i++){ const a=i*5*Math.PI/180, r0=115.5, r1=i%18===0?124:122.5, sn=Math.sin(a), cs=Math.cos(a);
+    t+=`<line x1="${(C+r0*sn).toFixed(2)}" y1="${(C-r0*cs).toFixed(2)}" x2="${(C+r1*sn).toFixed(2)}" y2="${(C-r1*cs).toFixed(2)}" stroke="#fff" stroke-opacity="${i%18===0?1:.85}" stroke-width="${i%18===0?2.2:1.4}" stroke-linecap="round"/>`; }
+  return t; })();
+function dialHTML(){
+  return `<div class="dial" id="dial"><div class="dial-base"></div><svg class="dial-seg" id="seg" viewBox="0 0 348 348">${segRing(nSec(),0,'idle')}</svg><div class="dial-sheen"></div><svg class="dial-seg" viewBox="0 0 348 348">${TICK_RING}</svg>
+    <div class="dial-marker" id="marker"><i class="tri"></i><i class="needle"></i></div>
+    <div class="dial-face"><div class="deg" id="deg">0°</div><div class="deg-sub" id="degSub"></div></div></div>`;
+}
+function statusHTML(){
+  const ph=S.phase; let cls='st-idle', icon='check', txt='Готов к работе', extra='';
+  if(ph==='ready'){
+    if(!gasOk()){cls='st-err';icon='alert';txt='Нет давления газа';}
+    else if(!waterOk()){cls='st-err';icon='alert';txt='Нет протока воды';}
+    else if(!torchZero()){cls='st-warn';icon='alert';txt='Горелка не в нуле';extra=`<button class="lnk" data-a="zero">В ноль</button>`;}
+  }
+  if(ph==='prepurge'){cls='st-air';icon='wind';txt='Продувка газом…';}
+  if(ph==='warm'){cls='st-fire';icon='flame';txt='Прогрев…';}
+  if(ph==='welding'){cls='st-fire';icon='flame';txt='Идёт сварка…';}
+  if(ph==='decay'){cls='st-fire';icon='flame';txt='Затухание дуги…';}
+  if(ph==='postpurge'){cls='st-air';icon='wind';txt='Продувка…';}
+  if(ph==='returning'){cls='st-air';icon='ccw';txt='Возврат в 0…';}
+  if(ph==='done'){cls='st-ok';icon='check';txt='Шов завершён';}
+  if(ph==='aborted'){cls='st-err';icon='alert';txt=S.err?'Аварийная остановка':'Сварка остановлена';}
+  return `<div class="status ${cls}">${ic(icon)}<span id="stTxt">${txt}</span>${extra}</div>`;
+}
+function funcsAvail(){ return FUNCS.filter(f=>!f.open||isOpen()); }
+function chipsHTML(){
+  const c=prog().common, act=funcsAvail().filter(f=>c[f.k]);
+  const shown=act.slice(0,2), rest=act.length-shown.length;
+  return `<div class="pills">${shown.map(f=>`<div class="pill">${f.chip}<button class="x" data-a="func-off" data-id="${f.k}" aria-label="Выключить">${ic('x')}</button></div>`).join('')}
+    ${rest>0?`<button class="more" data-a="funcs">+${rest}</button>`:`<button class="more ${act.length?'':'wide'}" data-a="funcs">${act.length?ic('plus'):ic('plus')+'Функции'}</button>`}</div>`;
+}
+function modeCard(){
+  const p=prog(), c=p.common, n=nSec(), s=p.sec;
+  if(isOpen()) return `<div class="card"><h3>Режим сварки<span class="sp"></span><span class="tag">${c.curMode}</span><span class="tag open">Открытая головка</span></h3>
+    <div class="mode-grid">
+      <div><label>Скорость сварки</label><div class="v">${f2(avg(s.speed))} <small>об/мин</small></div></div>
+      <div><label>Время прохода, расч.</label><div class="v">${mmss(revTime(p))} <small>мин</small></div></div>
+      <div><label>Напряжение (слежение)</label><div class="v">${f1(avg(s.avcV))} <small>В</small></div></div>
+      <div><label>Ток импульса</label><div class="v">${Math.max(...s.pulseHi)} <small>А</small></div></div>
+    </div>${chipsHTML()}</div>`;
+  return `<div class="card"><h3>Режим сварки<span class="sp"></span><span class="tag">${c.curMode}</span><span class="tag closed">Закрытая головка</span></h3>
+    <div class="mode-grid">
+      <div><label>Ток по секторам</label><div class="v">${s.pulseHi[0]}-${s.pulseHi[n-1]} <small>А</small></div></div>
+      <div><label>Время шва, расч.</label><div class="v">${mmss(revTime(p))} <small>мин</small></div></div>
+      <div><label>Газ до</label><div class="v">${fx(c.gasBefore,0)} <small>сек</small></div></div>
+      <div><label>Газ после</label><div class="v">${fx(c.gasAfter,0)} <small>сек</small></div></div>
+    </div>${chipsHTML()}</div>`;
+}
+/* коррекции во время сварки — те же действия, что кнопки ручного режима старой панели */
+const CORR = {
+  cur:{l:'Ток', u:'%', step:()=>1, d:1, lim:20},
+  arc:{l:'Длина дуги', u:'В', step:()=>0.1, d:1, lim:2},
+  osc:{l:'Колебания', u:'мм', step:()=>0.1, d:1, lim:3, lr:1},
+  wire:{l:'Проволока', u:'%', step:()=>prog().common.wireStep, d:0, lim:50, lr:1},
+  spd:{l:'Скорость', u:'%', step:()=>prog().common.rotBoost, d:0, lim:50},
+};
+function stepperHTML(key,label){
+  const c=CORR[key];
+  return `<div class="stepper"><button class="pm" data-hold="corr" data-key="${key}" data-d="-1">${ic(c.lr?'chevL':'minus')}</button>
+    <div class="sv" id="sv-${key}"><label>${label}</label><div class="num"><b>0.0</b><small>${c.u}</small></div></div>
+    <button class="pm" data-hold="corr" data-key="${key}" data-d="1">${ic(c.lr?'chevR':'plus')}</button></div>`;
+}
+function processCard(){
+  const head=`<h3>Текущая сварка<span class="sp"></span><span class="tag time" id="tmr">00:00</span></h3>`;
+  if(isOpen()) return `<div class="card">${head}
+    <div class="live4">
+      <div><label>Ск-ть сварки</label><div class="lv stack"><span id="lvRpm">0.00</span><small>об/мин</small></div></div>
+      <div><label>Проволока</label><div class="lv stack"><span id="lvWire">0</span><small>мм/мин</small></div></div>
+      <div><label>Напряжение</label><div class="lv"><i class="dot" id="dV"></i><span id="lvVolt">0.0</span><small>В</small></div></div>
+      <div><label>Ток</label><div class="lv"><i class="dot" id="dA"></i><span id="lvCur">0</span><small>А</small></div></div>
+    </div>
+    <div class="tabs">${['wire','cur','arc','spd','osc'].map(t=>`<button class="${S.tab===t?'on':''}" data-a="tab" data-id="${t}">${CORR[t].l}</button>`).join('')}</div>
+    <div class="abs" style="right:33px;top:200px">${stepperHTML(S.tab, CORR[S.tab].l)}</div></div>`;
+  return `<div class="card">${head}
+    <div class="live-closed">
+      <div class="abs" style="left:32px;top:87px"><label>Скорость сварки</label><div class="lv"><i class="dot" id="dR"></i><span id="lvRpm">0</span><small>об/мин</small></div></div>
+      <div class="abs" style="left:32px;top:170px"><label>Напряжение</label><div class="lv"><i class="dot" id="dV"></i><span id="lvVolt">0.0</span><small>В</small></div></div>
+      <div class="abs" style="left:32px;top:253px"><label>Ток</label><div class="lv"><i class="dot" id="dA"></i><span id="lvCur">0</span><small>А</small></div></div>
+    </div>
+    <div class="abs" style="right:33px;top:127px">${stepperHTML('spd','Ск-ть')}</div>
+    <div class="abs" style="right:33px;top:243px">${stepperHTML('cur','Ток')}</div></div>`;
+}
+function summaryCard(){
+  const s=S.sum||{time:0,cur:0,volt:0,angle:0}, ok=S.phase==='done', p=prog();
+  const title=ok?'Итоги сварки':(S.err?'Сварка прервана':'Сварка остановлена');
+  const tag=ok?`<span class="tag" style="background:#d6f5e6;color:#0e8f55">Шов завершён</span>`:`<span class="tag" style="background:#fde2e2;color:#c42222">на ${Math.round(s.angle)}°</span>`;
+  return `<div class="card sum"><h3>${title}<span class="sp"></span>${tag}</h3>
+    <div class="mode-grid">
+      <div><label>Время сварки</label><div class="v">${mmss(s.time)} <small>мин</small></div></div>
+      <div><label>Программа</label><div class="v">${p.code} <small>${p.model}</small></div></div>
+      <div><label>Ток, средний</label><div class="v">${s.cur?Math.round(s.cur):'—'} <small>А</small></div></div>
+      <div><label>Напряжение, ср.</label><div class="v">${s.volt?f1(s.volt):'—'} <small>В</small></div></div>
+    </div>
+    ${S.err?`<div class="pills" style="color:var(--red);font-size:19px;font-weight:600;gap:10px">${ic('alert')}${S.err.replace('Аварийная остановка: ','Причина: ')}</div>`:''}
+  </div>`;
+}
+function actionsHTML(){
+  const ph=S.phase;
+  if(ph==='ready'){
+    let sub='Удерживайте 1 сек', dis=false;
+    if(!gasOk()){sub='Нет давления газа';dis=true;}
+    else if(!waterOk()){sub='Нет протока охлаждения';dis=true;}
+    else if(!torchZero()){sub='Сначала верните горелку в ноль';dis=true;}
+    return `<button class="act start press ${dis?'disabled':''}" data-press="start" data-ms="1000" style="--ms:1s"><span>СТАРТ</span><small>${sub}</small></button>`;
+  }
+  if(['prepurge','warm','welding','decay','postpurge'].includes(ph))
+    return `<button class="act stop" data-a="stop">СТОП</button><button class="act smooth ${ph==='decay'?'dim':''}" data-a="smooth">Плавная остановка</button>`;
+  if(ph==='returning') return `<button class="act blue dim">Возврат в 0…</button>`;
+  if(ph==='done') return `<button class="act start" data-a="newweld"><span>ГОТОВО</span><small>К следующему шву</small></button>`;
+  if(ph==='aborted') return `<button class="act blue" data-a="zero">Вернуть горелку в ноль</button>`;
+}
+
+/* ================= экраны ================= */
+function weldScreen(){
+  const ph=S.phase, locked=RUNNING.includes(ph);
+  const card = ph==='ready'?modeCard():(['done','aborted','returning'].includes(ph)?summaryCard():processCard());
+  return `<div class="${locked?'locked':''}">${header('Сварка','weld')}</div>${dialHTML()}${statusHTML()}${card}${actionsHTML()}`;
+}
+function manualScreen(){
+  const o=isOpen(), j=S.jog;
+  const val=(id,u)=>`<div class="val" id="${id}"><b>0.0</b><small>${u}</small></div>`;
+  const rot=`<div class="sc" style="left:20px;top:116px;width:${o?312:318}px;height:270px">
+      <h4>Вращение<span id="absAng">74°</span></h4>
+      <div class="row"><button class="pm" data-hold="rot" data-d="-1" aria-label="Назад">${ic('ccw')}</button><div class="val" id="rotV"><b>0.0°</b></div><button class="pm" data-hold="rot" data-d="1" aria-label="Вперёд">${ic('cw')}</button></div>
+      <button class="reset0" data-a="zero">Сбросить в ноль</button></div>`;
+  const tests=`<button class="btile ${S.test.gas>0?'on':''}" style="left:20px;top:402px;width:${o?312:318}px;height:80px" data-a="test-gas">${ic('gas')}<span id="tgTxt">Тест газа</span></button>
+     <button class="btile ${S.test.water>0?'on':''}" style="left:20px;top:498px;width:${o?312:318}px;height:80px" data-a="test-water">${ic('drop')}<span id="twTxt">Тест охлаждения</span></button>`;
+  const card=(x,y,w,h,title,key,u,lr,sub)=>`<div class="sc" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">
+      <h4>${title}</h4>${sub?`<div class="sub" id="sub-${key}">${sub}</div>`:''}
+      <div class="row" style="${sub?'margin-top:52px':''}"><button class="pm" data-hold="jog" data-key="${key}" data-d="-1">${ic(lr?'chevL':'minus')}</button>${val('j-'+key,u)}<button class="pm" data-hold="jog" data-key="${key}" data-d="1">${ic(lr?'chevR':'plus')}</button></div></div>`;
+  const stby=(x,y,w,h,col)=>`<button class="btile ${col?'col':''}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px" data-a="standby">${ic('moon')}Ожидание</button>`;
+  const fns=(x,y,w,h,col)=>`<button class="btile ${col?'col':''}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px" data-a="funcs">${ic('sliders')}Функции</button>`;
+  let body;
+  if(o){
+    body = card(348,116,320,168,'Проволока','wire','мм',true)+card(684,116,320,168,'Колебания','osc','мм',true)+
+           card(348,302,320,170,'Длина дуги','arc','мм',false)+card(684,302,320,170,'Ток','cur','%',false)+
+           `<button class="btile press" style="left:348px;top:488px;width:320px;height:90px" data-hold="retract">${ic('retract')}<span id="rtTxt">Оттяжка<br>проволоки</span></button>`+
+           stby(684,488,152,90,1)+fns(852,488,152,90,1);
+  } else {
+    body = card(354,116,316,270,'Скорость вращения','spd','%',false,`${f2(0.5)} об/мин`)+card(687,116,317,270,'Ток','cur','%',false,'&nbsp;')+
+           stby(354,402,316,92)+fns(687,402,317,92);
+  }
+  return header('Ручной режим','manual')+rot+tests+body;
+}
+const rng = a => { const hi=Math.max(...a), lo=Math.min(...a); return hi===lo?`${hi}`:`${a[0]}–${a[a.length-1]}`; };
+function progLine(p){ return `<b><span>${p.code}</span> ${p.model}</b><small>Ø${f1(p.d)} × ${f1(p.t)} мм · ${isOpenP(p)?'открытая':'закрытая'} головка</small>`; }
+function programsScreen(){
+  const rows=[];
+  for(let s=1;s<=SLOTS;s++){
+    const p=S.progs.find(x=>x.slot===s);
+    rows.push(p?`<button class="pc ${p.id===S.pSel?'sel':''}" data-a="psel" data-id="${p.id}"><span class="slot">${s}</span><span class="nm">${progLine(p)}</span>${p.id===S.progId?'<span class="cur">загружена</span>':''}</button>`
+              :`<div class="pc empty"><span class="slot">${s}</span>Свободная ячейка</div>`);
+  }
+  const p=S.progs.find(x=>x.id===S.pSel)||prog(), o=isOpenP(p), s=p.sec, c=p.common, n=c.sectors;
+  const loaded=p.id===S.progId, busy=RUNNING.includes(S.phase);
+  return `<button class="tile back" data-a="back">${ic('back')}</button><div class="title">Место сохранения</div>
+    <div class="plist">${rows.join('')}</div>
+    <div class="pdet"><h5><span style="color:#7f8c96">${p.code}</span> ${p.model}<span class="tag ${o?'open':'closed'}" style="margin-left:auto">${o?'Открытая':'Закрытая'} головка</span></h5>
+      <div style="font-size:18px;color:var(--muted2);margin-top:6px">Ячейка ${p.slot} · труба Ø${f1(p.d)} мм, стенка ${f1(p.t)} мм · ${n} сектора</div>
+      <div class="pg">
+        <div><label>Ток высокого импульса</label><b>${rng(s.pulseHi)} <small>А</small></b></div>
+        <div><label>Рабочий ток</label><b>${rng(s.base)} <small>А</small></b></div>
+        <div><label>Скорость сварки</label><b>${fx(avg(s.speed),speedDec(p))} <small>об/мин</small></b></div>
+        <div><label>Продувка до / после</label><b>${fx(c.gasBefore,0)} / ${fx(c.gasAfter,0)} <small>с</small></b></div>
+        <div><label>Прогрев</label><b>${c.warmCur} <small>А · ${f1(c.warmTime)} с</small></b></div>
+        <div><label>Затухание</label><b>${f1(c.decay)} <small>с</small></b></div>
+      </div>
+      <div class="btns">
+        <button class="bt line" style="flex:1" data-a="edit">Параметры</button>
+        <button class="bt green ${loaded||busy?'off':''}" style="flex:1.3" data-a="pload">${loaded?'Загружена':'Загрузить'}</button>
+      </div></div>`;
+}
+/* ---- редактор ---- */
+function edProg(){ return S.ed.draft; }
+function edTabs(){ return ETABS.filter(t=>!t.open||isOpenP(edProg())); }
+function fmtVal(def,v){ return def.type==='bool'?(v?'ВКЛ':'ВЫКЛ'):def.type==='enum'?v:fx(v,def.dec); }
+function isChg(kind,key,i){
+  const a=S.progs.find(x=>x.id===S.ed.id), b=edProg();
+  if(kind==='s') return a.sec[key][i]!==b.sec[key][i];
+  if(kind==='m') return a[key]!==b[key];
+  return a.common[key]!==b.common[key];
+}
+function chgCount(){
+  const a=S.progs.find(x=>x.id===S.ed.id), b=edProg(); let n=0;
+  for(const k in b.sec) b.sec[k].forEach((v,i)=>{ if(a.sec[k][i]!==v) n++; });
+  for(const k in b.common) if(a.common[k]!==b.common[k]) n++;
+  for(const k of ['model','d','t']) if(a[k]!==b[k]) n++;
+  return n;
+}
+function ringSVG(n, sel){
+  const C=130, R=96, W=30, parts=[];
+  const pt=(a,r)=>[C+r*Math.sin(a*Math.PI/180), C-r*Math.cos(a*Math.PI/180)];
+  for(let i=0;i<n;i++){
+    const a0=360/n*i+1.5, a1=360/n*(i+1)-1.5, [x0,y0]=pt(a0,R), [x1,y1]=pt(a1,R), big=(a1-a0)>180?1:0;
+    const on = sel===-1 || sel===i;
+    parts.push(`<path d="M${x0} ${y0}A${R} ${R} 0 ${big} 1 ${x1} ${y1}" stroke="${on?'#0a7ff9':'#d5dee5'}" stroke-width="${W}" fill="none" data-a="esec" data-id="${i}" style="cursor:pointer"/>`);
+    const [lx,ly]=pt(360/n*(i+.5),R); parts.push(`<text x="${lx}" y="${ly+6}" text-anchor="middle" font-size="17" font-weight="600" fill="${on?'#fff':'#586772'}" pointer-events="none">${i+1}</text>`);
+  }
+  parts.push(`<polygon points="${C-9},${C-R-W/2-16} ${C+9},${C-R-W/2-16} ${C},${C-R-W/2-2}" fill="#0a7ff9"/>`);
+  return `<svg width="250" height="250" viewBox="0 0 260 260">${parts.join('')}<circle cx="${C}" cy="${C}" r="${R-W/2-8}" fill="#f2f6f9"/>
+    <text x="${C}" y="${C-4}" text-anchor="middle" font-size="15" fill="#64727e">точка 0 — верх</text><text x="${C}" y="${C+20}" text-anchor="middle" font-size="15" fill="#64727e">по часовой</text></svg>`;
+}
+function editorScreen(){
+  const e=S.ed, p=edProg(), n=p.common.sectors, o=isOpenP(p), tab=edTabs().find(t=>t.id===e.tab)||edTabs()[0];
+  const cols=`236px repeat(${n},1fr)`;
+  let rows=tab.rows.filter(([k,key])=>k==='g'||!(k==='s'?SEC[key]:COM[key]).open||o);
+  if(tab.id!=='com'){ const sec=rows.filter(r=>r[0]==='s'), com=rows.filter(r=>r[0]==='c'); rows=com.length?[...sec,['g','Общие для всех секторов','all'],...com]:sec; }
+  const body=rows.map(([k,key])=>{
+    if(k==='g') return `<div class="grp ${tab.id!=='com'?'all':''}">${tab.id!=='com'?ic('link'):''}${key}</div>`;
+    if(k==='s'){ const d=SEC[key];
+      return `<div class="tr" style="grid-template-columns:${cols}"><div class="lb">${d.l}<small>${d.u}</small></div>${
+        p.sec[key].map((v,i)=>`<div class="cell ${i===e.sec?'sel':''} ${isChg('s',key,i)?'chg':''}" data-a="ecell" data-k="s" data-key="${key}" data-i="${i}">${fx(v,key==='speed'?speedDec(p):d.dec)}</div>`).join('')}</div>`; }
+    const d=COM[key], v=p.common[key];
+    const inner = d.type==='bool' ? `<i class="sw ${v?'on':''}"></i><span style="font-size:16px;color:var(--muted2)">${v?'ВКЛ':'ВЫКЛ'}</span>`
+                : d.type==='enum' ? `<span class="enumsw">${d.opts.map(x=>`<span class="${x===v?'on':''}">${x}</span>`).join('')}</span>`
+                : `${fx(v,d.dec)} <small style="font-size:15px;font-weight:500;color:var(--muted)">${d.u}</small>`;
+    return `<div class="tr ${tab.id!=='com'?'com':''}" style="grid-template-columns:${cols}"><div class="lb">${d.l}</div><div class="cell span ${isChg('c',key)?'chg':''}" style="grid-column:2 / span ${n}" data-a="ecell" data-k="c" data-key="${key}">${inner}</div></div>`;
+  }).join('');
+  const secHead = tab.id==='com' ? `<div style="grid-column:2 / span ${n};padding-left:16px">Значение для всей программы</div>`
+    : Array.from({length:n},(_,i)=>`<button class="${i===e.sec?'sel':''}" data-a="esec" data-id="${i}">${n>4?'С':'Сектор '}${i+1}</button>`).join('');
+  const ringSel = tab.id==='com'?-1:e.sec, a0=Math.round(360/n*e.sec), a1=Math.round(360/n*(e.sec+1));
+  return `<button class="tile back" data-a="back">${ic('back')}</button><div class="title2"><b>Программа ${p.code}</b><small>${p.model} · Ø${f1(p.d)} × ${f1(p.t)} мм · ячейка ${p.slot}${['model','d','t'].some(k=>isChg('m',k))?' · изменено':''}</small></div>
+    <button class="gkey ${e.unlocked?'open':''}" id="lockBtn" ${e.unlocked?'data-a="model"':'data-press="unlock" data-ms="2000"'} aria-label="Параметры программы"><svg class="pt-ring" viewBox="0 0 90 90"><circle cx="45" cy="45" r="41"/></svg>${ic('gear')}</button>
+    <div class="tip" id="gtip">${e.unlocked?'Нажмите, чтобы открыть модель и трубу':'Удерживайте 2 секунды, чтобы изменить программу'}</div>
+    <div class="ring-card">${ringSVG(n,ringSel)}<div class="ring-cap">${tab.id==='com'?`<b>Вся программа</b><small>${n} сектора по ${Math.round(360/n)}°</small>`:`<b>Сектор ${e.sec+1}</b><small>${a0}°–${a1}°</small>`}</div></div>
+    <div class="etabs">${edTabs().map(t=>`<button class="${t.id===tab.id?'on':''}" data-a="etab" data-id="${t.id}">${t.l}</button>`).join('')}</div>
+    <div class="tbl ${e.unlocked?'':'ro'}"><div class="thead" style="grid-template-columns:${cols}"><div style="padding-left:20px">Параметр</div>${secHead}</div><div class="tbody">${body}</div></div>
+    <div id="efoot">${footHTML()}</div>`;
+}
+function footHTML(){
+  const cnt=chgCount();
+  return `<button class="bt ghost efoot ${cnt?'':'off'}" style="left:348px;width:212px" data-a="ediscard">Отменить</button>
+    <button class="bt green efoot ${cnt?'':'off'}" style="left:576px;width:428px" data-a="esave">Сохранить${cnt?` · ${cnt} ${plural(cnt,'изменение','изменения','изменений')}`:''}</button>`;
+}
+function refreshFoot(){ const f=$('efoot'); if(f) f.innerHTML=footHTML(); }
+function plural(n,a,b,c){ const m=n%10, h=n%100; return m===1&&h!==11?a:(m>=2&&m<=4&&(h<10||h>=20)?b:c); }
+
+/* ---- листы ---- */
+function funcsSheet(){
+  const c=prog().common;
+  return `<div class="veil" data-a="veil"><div class="sheet" style="width:620px" data-stop>
+    <h2><div>Функции<small>Переключатели программы ${prog().code}</small></div><button class="close" data-a="close">${ic('x')}</button></h2>
+    <div class="olist">${funcsAvail().map(f=>`<button class="orow" data-a="func-tgl" data-id="${f.k}"><div>${COM[f.k].l}${f.hint?`<small>${f.hint}</small>`:''}</div><i class="sw ${c[f.k]?'on':''}"></i></button>`).join('')}</div>
+  </div></div>`;
+}
+function keypadSheet(){
+  const k=S.kp, v=parseFloat(k.buf), bad=k.buf===''||isNaN(v)||v<k.min||v>k.max;
+  const keys=['7','8','9','⌫','4','5','6','Сброс','1','2','3','±','0','.','',''];
+  return `<div class="veil" data-a="veil"><div class="sheet" style="width:520px" data-stop>
+    <h2><div>${k.title}<small>${k.sub}</small></div><button class="close" data-a="close">${ic('x')}</button></h2>
+    <div class="kp-disp"><b class="${bad&&k.buf!==''?'err':''}">${k.buf===''?'—':k.buf}</b><span>${k.u}</span></div>
+    <div class="kp-lim"><span>MIN ${fx(k.min,k.dec)} · MAX ${fx(k.max,k.dec)}</span>${bad&&k.buf!==''?`<span class="e">Вне допустимого диапазона</span>`:`<span>было ${k.was}</span>`}</div>
+    <div class="keys">${keys.map(x=>x===''?'<span></span>':`<button class="${/[0-9.]/.test(x)?'':'fn'}" data-a="key" data-id="${x}">${x}</button>`).join('')}</div>
+    <div class="kp-act">${k.kind==='s'
+      ? `<button class="bt line ${bad?'off':''}" data-a="kp-all">Во все секторы</button><button class="bt blue ${bad?'off':''}" data-a="kp-one">В сектор ${k.i+1}</button>`
+      : `<button class="bt ghost" data-a="close">Отмена</button><button class="bt blue ${bad?'off':''}" data-a="kp-one">Применить</button>`}</div>
+  </div></div>`;
+}
+function modelSheet(){
+  const p=edProg(), ro=!S.ed.unlocked;
+  return `<div class="veil" data-a="veil"><div class="sheet" style="width:700px" data-stop>
+    <h2><div>Параметры программы<small>Программа ${p.code} · изменение открыто</small></div><button class="close" data-a="close">${ic('x')}</button></h2>
+    <div class="mseg">${MODELS.map(m=>`<button class="${m===p.model?'on':''}" data-a="mset" data-id="${m}">${m}</button>`).join('')}</div>
+    <div class="mtiles">
+      <button class="mtile ${isChg('m','d')?'chg':''}" data-a="mnum" data-id="d"><label>Диаметр трубы</label><b>${f1(p.d)} <small>мм</small></b></button>
+      <button class="mtile ${isChg('m','t')?'chg':''}" data-a="mnum" data-id="t"><label>Толщина трубы</label><b>${f2(p.t)} <small>мм</small></b></button>
+    </div>
+    <div class="kp-act"><button class="bt ghost" data-a="relock">Закрыть изменение</button><button class="bt blue" data-a="close">Готово</button></div>
+  </div></div>`;
+}
+function leaveSheet(){
+  const n=chgCount();
+  return `<div class="veil"><div class="sheet" style="width:560px" data-stop>
+    <h2><div>Сохранить изменения?<small>${n} ${plural(n,'параметр изменён','параметра изменены','параметров изменено')} в программе ${edProg().code}</small></div></h2>
+    <div class="kp-act"><button class="bt ghost" data-a="eleave">Не сохранять</button><button class="bt green" data-a="esave-leave">Сохранить</button></div>
+  </div></div>`;
+}
+
+let lastSheet=null, lastStby=false;
+/* ---- режим ожидания: анимация в языке интерфейса ---- */
+function standbyHTML(){
+  const n=nSec();
+  return `<div class="standby" data-a="wake">
+    <div class="dial"><div class="dial-base"></div><svg class="dial-seg" viewBox="0 0 348 348">${segRing(n,0,'idle')}</svg>
+      <svg class="dial-seg" id="sbSeg" viewBox="0 0 348 348"></svg><div class="dial-sheen"></div><svg class="dial-seg" viewBox="0 0 348 348">${TICK_RING}</svg>
+      <div class="dial-face">${ic('moon')}<div class="ph">Ожидание</div></div></div>
+    <svg class="sb-fx" viewBox="0 0 1024 600">
+      <defs><radialGradient id="sbGlow"><stop offset="0" stop-color="#ffd27a" stop-opacity=".95"/><stop offset=".35" stop-color="#fc9a3a" stop-opacity=".45"/><stop offset="1" stop-color="#fc7b1a" stop-opacity="0"/></radialGradient>
+        <filter id="sbSh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#2d4155" flood-opacity=".28"/></filter></defs>
+      <circle id="sbGlowC" r="60" fill="url(#sbGlow)" opacity="0"/><g id="sbSparks"></g><polygon id="sbTri" fill="#fc7b1a"/>
+      <g id="sbTorch"><circle id="sbHalo" r="30" fill="#e0342f" opacity="0"/><g filter="url(#sbSh)"><circle r="24" fill="#fff"/></g><g id="sbFlame" transform="translate(-12.5 -12.5) scale(1.04)" fill="none" stroke="#e0342f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${P.flame}</g></g>
+    </svg>
+    <div class="sb-txt"><b>Режим ожидания</b><span>Коснитесь экрана, чтобы продолжить</span></div>
+  </div>`;
+}
+/* цикл: секции заполняются, как при сварке → синяя «продувка» → гаснет; в центре всегда «Ожидание» */
+function runStandby(){
+  const SCALE=.92, CX=512, CY=56+174, RING=173*SCALE;
+  const T_WELD=9000, T_PURGE=1800, T_RESET=700, T_ALL=T_WELD+T_PURGE+T_RESET;
+  const Q=(a,r)=>[CX+r*Math.sin(a*Math.PI/180), CY-r*Math.cos(a*Math.PI/180)];
+  const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const sparks=[]; let t0=performance.now(), last=t0, key='';
+  function frame(now){
+    if(!S.standby) return false;
+    const seg=$('sbSeg'); if(!seg) return true;
+    const dt=Math.min(50,now-last); last=now;
+    const tc=still?T_WELD*.58:(now-t0)%T_ALL, n=nSec();
+    let mode='weld', ang, alpha=1, torchA=1;
+    if(tc<T_WELD) ang=tc/T_WELD*360;
+    else if(tc<T_WELD+T_PURGE){ mode='purge'; ang=360; torchA=Math.max(0,1-(tc-T_WELD)/300); }
+    else { mode='purge'; ang=360; alpha=1-(tc-T_WELD-T_PURGE)/T_RESET; torchA=1-alpha; }
+    const k=mode+'|'+n+'|'+Math.round(ang*4);
+    if(seg.dataset.k!==k){ seg.dataset.k=k; seg.innerHTML=segRing(n,ang,mode); }
+    seg.style.opacity=alpha.toFixed(2);
+    const a=mode==='weld'?ang:0, op=torchA.toFixed(2);
+    const [tx,ty]=Q(a,RING+36); const torch=$('sbTorch'); torch.setAttribute('transform',`translate(${tx.toFixed(1)} ${ty.toFixed(1)})`); torch.setAttribute('opacity',op);
+    // огонёк пульсирует: масштаб и мягкий красный ореол
+    const pulse=still?0:(Math.sin(now/170)+1)/2, ks=1.04*(1+.12*pulse);
+    $('sbFlame').setAttribute('transform',`translate(${(-12*ks).toFixed(2)} ${(-12*ks).toFixed(2)}) scale(${ks.toFixed(3)})`);
+    $('sbHalo').setAttribute('r',(27+5*pulse).toFixed(1)); $('sbHalo').setAttribute('opacity',(.08+.14*pulse).toFixed(2));
+    const tri=[Q(a,RING+3),Q(a-2.6,RING+16),Q(a+2.6,RING+16)]; $('sbTri').setAttribute('points',tri.map(p=>p.map(v=>v.toFixed(1)).join(',')).join(' ')); $('sbTri').setAttribute('opacity',op);
+    const welding=mode==='weld', fl=welding?(still?.85:.8+Math.random()*.2):0, [gx,gy]=Q(a,RING-8), gc=$('sbGlowC');
+    gc.setAttribute('cx',gx.toFixed(1)); gc.setAttribute('cy',gy.toFixed(1)); gc.setAttribute('opacity',fl.toFixed(2)); gc.setAttribute('r',(50+fl*14).toFixed(1));
+    if(welding && !still && Math.random()<.85){
+      const m=1+Math.floor(Math.random()*3), [sx,sy]=Q(a,RING-2), nrm=(a-90)*Math.PI/180, tang=nrm-Math.PI/2;
+      for(let i=0;i<m;i++){ const d=nrm+(Math.random()-.5)*2.2, sp=.8+Math.random()*2.4, back=Math.random()*1.2;
+        sparks.push({x:sx,y:sy,vx:Math.cos(d)*sp+Math.cos(tang)*back,vy:Math.sin(d)*sp+Math.sin(tang)*back,life:0,max:22+Math.random()*26,r:1.2+Math.random()*1.6,c:Math.random()<.5?'#fc7b1a':'#f7b733'}); }
+    }
+    let svg=''; const f=dt/16.7;
+    for(let i=sparks.length-1;i>=0;i--){ const p=sparks[i]; p.life+=f; p.vy+=.06*f; p.x+=p.vx*f; p.y+=p.vy*f;
+      const kk=1-p.life/p.max; if(kk<=0||p.y>462){ sparks.splice(i,1); continue; }
+      svg+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(p.r*(.5+kk*.5)).toFixed(2)}" fill="${p.c}" opacity="${kk.toFixed(2)}"/>`; }
+    $('sbSparks').innerHTML=svg;
+    return true;
+  }
+  if(still){ frame(t0); return; }
+  (function loop(now){ if(frame(now)) requestAnimationFrame(loop); })(t0);
+}
+function render(){
+  const scr=$('screen');
+  let html = S.screen==='weld'?weldScreen():S.screen==='manual'?manualScreen():S.screen==='programs'?programsScreen():editorScreen();
+  if(S.sheet==='funcs') html+=funcsSheet();
+  if(S.sheet==='keypad') html+=keypadSheet();
+  if(S.sheet==='model') html+=modelSheet();
+  if(S.sheet==='leave') html+=leaveSheet();
+  if(S.standby) html+=standbyHTML();
+  const tb=scr.querySelector('.tbody'), st=tb?tb.scrollTop:0, freshSheet=S.sheet!==lastSheet, freshStby=S.standby!==lastStby; lastSheet=S.sheet; lastStby=S.standby;
+  scr.className='screen'+(S.screen==='weld'?' glow':'');
+  scr.innerHTML=html;
+  const tb2=scr.querySelector('.tbody'); if(tb2) tb2.scrollTop=st;
+  if(!freshSheet){ const v=scr.querySelector('.veil'); if(v) v.classList.add('still'); }
+  if(!freshStby){ const v=scr.querySelector('.standby'); if(v) v.classList.add('still'); }
+  if(S.standby && (freshStby || matchMedia('(prefers-reduced-motion: reduce)').matches)) runStandby();
+  syncDeck(); sync();
+}
+
+/* ================= синхронизация кадра ================= */
+function setText(id,v){ const e=$(id); if(e && e.textContent!==String(v)) e.textContent=v; }
+function sync(){
+  if(S.screen==='weld'){
+    const dial=$('dial'); if(!dial) return;
+    const ph=S.phase, n=nSec();
+    let mode='idle', ang=0, mk='', sub='';
+    if(ph==='ready'){ ang=norm(S.torch); sub=torchZero()?'Горелка в нуле':'Горелка не в нуле'; }
+    else if(ph==='prepurge'){ sub=`Газ до: ${Math.max(0,Math.ceil(prog().common.gasBefore-S.phaseT))} с`; }
+    else if(ph==='warm'){ sub=`Прогрев: ${Math.max(0,Math.ceil(prog().common.warmTime-S.phaseT))} с`; }
+    else if(ph==='welding'||ph==='decay'){ mode='weld'; ang=weldAngle(); mk='mk-orange'; sub=`Секция ${sectorIdx(ang)+1} из ${n}`; }
+    else if(ph==='postpurge'){ mode='purge'; ang=S.stopAngle; sub=`Секция ${sectorIdx(Math.min(359.9,ang))+1} из ${n}`; }
+    else if(ph==='done'){ mode='done'; ang=360; mk='mk-green'; sub='Шов готов'; }
+    else if(ph==='aborted'){ mode='abort'; ang=S.stopAngle; mk='mk-red'; sub='Остановлено'; }
+    else if(ph==='returning'){ ang=S.torch; sub='Возврат в 0'; }
+    dial.className='dial '+(mode==='idle'?'idle ':'')+mk;
+    const segKey=mode+'|'+n+'|'+Math.round(Math.min(360,ang)*4);
+    if(dial.dataset.seg!==segKey){ dial.dataset.seg=segKey; $('seg').innerHTML=segRing(n,mode==='idle'?0:Math.min(360,ang),mode); }
+    $('marker').style.transform=`rotate(${mode==='purge'||mode==='done'?0:ang}deg)`;
+    setText('deg', `${Math.round(ph==='ready'||ph==='returning'?S.torch:ang)}°`);
+    setText('degSub', sub);
+    if($('lvCur')){
+      const nowT=performance.now();
+      if(!S.L||nowT-S.lastLiveT>280||S.phase!==S.lastLivePh){ S.L=live(); S.lastLiveT=nowT; S.lastLivePh=S.phase; }
+      const L=S.L;
+      setText('lvRpm', isOpen()?f2(L.rpm):Math.round(L.rpm));
+      if($('lvWire')) setText('lvWire', Math.round(L.wire));
+      setText('lvVolt', f1(L.volt)); setText('lvCur', Math.round(L.cur));
+      for(const d of ['dV','dA']){ const e=$(d); if(e) e.className='dot '+(L.arc?(ph==='decay'||ph==='warm'?'warn':''):'off'); }
+      const dR=$('dR'); if(dR) dR.className='dot '+(ph==='welding'||ph==='decay'?'':'off');
+      setText('tmr', mmss0(S.weldT));
+      for(const k in CORR){ const e=$('sv-'+k); if(!e) continue; const v=S.corr[k], c=CORR[k];
+        e.classList.toggle('nz',Math.abs(v)>1e-6); const b=e.querySelector('b'), s=v===0?fx(0,c.d):signed(v,c.d); if(b.textContent!==s) b.textContent=s; }
+    }
+  } else if(S.screen==='manual'){
+    setText('absAng', `${Math.round(norm(S.absBase+S.torch))}°`);
+    const rv=$('rotV'); if(rv){ const v=norm(S.torch+180)-180; rv.querySelector('b').textContent=(Math.abs(v)>=99.95?Math.round(v):f1(v))+'°'; }
+    for(const k in S.jog){ const e=$('j-'+k); if(!e) continue; const v=S.jog[k]; e.classList.toggle('nz',Math.abs(v)>1e-6); e.querySelector('b').textContent=f1(v); }
+    const sub=$('sub-spd'); if(sub) sub.textContent=`${f2(0.5*(1+S.jog.spd/100))} об/мин`;
+    setText('tgTxt', S.test.gas>0?`Газ подаётся… ${Math.ceil(S.test.gas)}`:'Тест газа');
+    setText('twTxt', S.test.water>0?`Проток… ${Math.ceil(S.test.water)}`:'Тест охлаждения');
+  }
+}
+
+/* ================= редактор: действия ================= */
+function openEditor(id){
+  const p=S.progs.find(x=>x.id===id);
+  S.ed={id, draft:clone(p), tab:'cur', sec:0, unlocked:false};
+  S.screen='editor'; render();
+}
+function editorTap(kind,key,i,el){
+  if(!S.ed.unlocked){ const b=$('lockBtn'); if(b){ b.classList.remove('nudge'); void b.offsetWidth; b.classList.add('nudge'); } showTip(); return; }
+  const p=edProg();
+  if(kind==='c'){ const d=COM[key];
+    if(d.type==='bool'){ const v=p.common[key]=!p.common[key];
+      el.querySelector('.sw').classList.toggle('on',v); el.querySelector('span').textContent=v?'ВКЛ':'ВЫКЛ'; el.classList.toggle('chg',isChg('c',key)); refreshFoot(); return; }
+    if(d.type==='enum'){ const o=d.opts, v=p.common[key]=o[(o.indexOf(p.common[key])+1)%o.length];
+      el.querySelectorAll('.enumsw span').forEach(x=>x.classList.toggle('on',x.textContent===v)); el.classList.toggle('chg',isChg('c',key)); refreshFoot(); return; }
+    openKeypad({kind:'c',key,title:d.l,sub:'Общий параметр программы',u:d.u,min:d.min,max:d.max,dec:d.dec,cur:p.common[key]}); return; }
+  const d=SEC[key], dec=key==='speed'?speedDec(p):d.dec;
+  S.ed.sec=i;
+  openKeypad({kind:'s',key,i,title:d.l,sub:`Сектор ${i+1} из ${p.common.sectors}`,u:d.u,min:d.min,max:d.max,dec,cur:p.sec[key][i]});
+}
+function openKeypad(o){ S.kp=Object.assign(o,{buf:fx(o.cur,o.dec),was:fx(o.cur,o.dec)+(o.u?' '+o.u:''),fresh:true, back:S.sheet==='model'?'model':null}); S.sheet='keypad'; render(); }
+function kpKey(x){
+  const k=S.kp;
+  if(x==='⌫') k.buf=k.buf.slice(0,-1);
+  else if(x==='Сброс') k.buf='';
+  else if(x==='±') k.buf=k.buf.startsWith('-')?k.buf.slice(1):(k.buf?'-'+k.buf:'-');
+  else { if(k.fresh) k.buf=''; if(x==='.'&&k.buf.includes('.')) return; if(k.buf.length<8) k.buf+=x; }
+  k.fresh=false; render();
+}
+function kpApply(all){
+  const k=S.kp, v=parseFloat(k.buf), p=edProg(), r=Math.round(v*Math.pow(10,k.dec))/Math.pow(10,k.dec);
+  if(k.kind==='s'){ if(all) p.sec[k.key]=p.sec[k.key].map(()=>r); else p.sec[k.key][k.i]=r; }
+  else if(k.kind==='m'){ p[k.key]=r; }
+  else { p.common[k.key]=r; if(k.key==='sectors') resizeSectors(p,r); }
+  S.sheet=k.back; S.kp=null; render();
+}
+function resizeSectors(p,n){
+  for(const key in p.sec){ const a=p.sec[key]; while(a.length<n) a.push(a[a.length-1]); a.length=n; }
+  if(S.ed.sec>=n) S.ed.sec=n-1;
+}
+function saveEditor(){
+  const i=S.progs.findIndex(x=>x.id===S.ed.id), n=chgCount();
+  S.progs[i]=clone(edProg()); S.ed.draft=clone(S.progs[i]);
+  if(S.progs[i].id===S.progId && S.phase==='ready'){ S.corr={cur:0,arc:0,osc:0,wire:0,spd:0}; }
+  note(`Программа ${S.progs[i].code} сохранена в ячейку ${S.progs[i].slot}: ${n} ${plural(n,'изменение','изменения','изменений')}`);
+}
+
+/* ================= ввод ================= */
+// длительное нажатие: СТАРТ (1 с) и «Изменить» (2 с)
+let pressT=null, pressEl=null;
+document.addEventListener('pointerdown',e=>{
+  const el=e.target.closest('[data-press]'); if(!el) return;
+  if(el.classList.contains('disabled')){
+    note(!gasOk()?'Нет давления газа: проверьте баллон и редуктор':!waterOk()?'Нет протока охлаждения: проверьте контур':'Горелка не в нуле: нажмите «В ноль» или верните её в ручном режиме');
+    return;
+  }
+  pressEl=el; el.classList.add('holding');
+  pressT=setTimeout(()=>{ const kind=el.dataset.press; pressEnd(true);
+    if(kind==='start') startWeld();
+    if(kind==='unlock'){ S.ed.unlocked=true; S.sheet='model'; render(); note('Изменение открыто: модель и труба — здесь, параметры секторов — в таблице'); }
+  }, +el.dataset.ms);
+});
+let tipT;
+function showTip(){ const t=$('gtip'); if(!t) return; t.classList.add('show'); clearTimeout(tipT); tipT=setTimeout(()=>t.classList.remove('show'),2600); }
+function pressEnd(done){
+  if(!pressEl) return;
+  pressEl.classList.remove('holding'); clearTimeout(pressT);
+  if(!done){ if(pressEl.dataset.press==='start') note('Удерживайте СТАРТ 1 секунду — защита от случайного запуска'); else showTip(); }
+  pressT=null; pressEl=null;
+}
+['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,()=>{ if(pressEl) pressEnd(false); }));
+
+// удержание с автоповтором: коррекции, движения ручного режима
+let holdT=null, holdI=null, holdEl=null;
+function holdStep(el){
+  const kind=el.dataset.hold, d=+el.dataset.d||0, k=el.dataset.key;
+  if(kind==='corr'){ const c=CORR[k]; S.corr[k]=Math.max(-c.lim,Math.min(c.lim,Math.round((S.corr[k]+d*c.step())*100)/100)); }
+  if(kind==='jog'){ const step=k==='cur'||k==='spd'?1:0.5; S.jog[k]=Math.max(-50,Math.min(50,Math.round((S.jog[k]+d*step)*10)/10)); }
+  if(kind==='rot'){ S.torch=Math.round((S.torch+d*(holdI?3:1))*10)/10; }
+  if(kind==='retract'){ S.jog.wire=Math.max(-50,Math.round((S.jog.wire-0.5)*10)/10); }
+}
+function holdEnd(){
+  clearTimeout(holdT); clearInterval(holdI); holdT=holdI=null;
+  if(holdEl){ holdEl.classList.remove('held'); if(holdEl.dataset.hold==='retract'){ const t=$('rtTxt'); if(t) t.innerHTML='Оттяжка<br>проволоки'; } }
+  holdEl=null;
+}
+document.addEventListener('pointerdown',e=>{
+  const el=e.target.closest('[data-hold]'); if(!el) return;
+  holdEl=el; el.classList.add('held'); holdStep(el);
+  if(el.dataset.hold==='retract'){ const t=$('rtTxt'); if(t) t.textContent='Оттяжка…'; }
+  holdT=setTimeout(()=>{ holdI=setInterval(()=>holdStep(el),70); },380);
+});
+['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,holdEnd));
+
+$('screen').addEventListener('click',e=>{
+  const el=e.target.closest('[data-a]'); if(!el) return;
+  if(el.dataset.a==='veil' && e.target.closest('[data-stop]')) return;
+  const a=el.dataset.a, id=el.dataset.id, busy=RUNNING.includes(S.phase);
+  switch(a){
+    case 'back':
+      if(S.screen==='manual'||S.screen==='programs'){ S.screen='weld'; render(); }
+      else if(S.screen==='editor'){ if(chgCount()){ S.sheet='leave'; render(); } else { S.screen='programs'; S.ed=null; render(); } }
+      else note('«Сварка» — главный экран аппарата');
+      break;
+    case 'manual': if(['ready','done','aborted'].includes(S.phase)){ if(S.phase!=='ready'){ S.torch=S.phase==='done'?0:S.stopAngle; S.phase='ready'; } S.screen='manual'; render(); } break;
+    case 'programs':
+      if(busy){ note('Программу нельзя менять во время сварки'); break; }
+      S.pSel=S.progId; S.screen='programs'; render(); break;
+    case 'psel': S.pSel=id; render(); break;
+    case 'pload': { const p=S.progs.find(x=>x.id===S.pSel); S.progId=p.id; S.torch=0; S.phase='ready'; S.corr={cur:0,arc:0,osc:0,wire:0,spd:0}; render(); note(`Загружена программа ${p.code} ${p.model}`); break; }
+    case 'edit': openEditor(S.pSel); break;
+    case 'etab': S.ed.tab=id; render(); break;
+    case 'esec': S.ed.sec=+id; render(); break;
+    case 'ecell': editorTap(el.dataset.k, el.dataset.key, +el.dataset.i, el); break;
+    case 'relock': S.ed.unlocked=false; S.sheet=null; render(); note('Изменение закрыто'); break;
+    case 'ediscard': S.ed.draft=clone(S.progs.find(x=>x.id===S.ed.id)); render(); note('Изменения отменены'); break;
+    case 'esave': saveEditor(); render(); break;
+    case 'esave-leave': saveEditor(); S.sheet=null; S.screen='programs'; S.ed=null; render(); break;
+    case 'eleave': S.sheet=null; S.screen='programs'; S.ed=null; render(); note('Изменения не сохранены'); break;
+    case 'model': S.sheet='model'; render(); break;
+    case 'mset': if(!S.ed.unlocked){ showTip(); break; }
+      { const p=edProg(); const was=headOf(p.model); p.model=id; if(headOf(id)!==was) note(`${id}: ${headOf(id)==='open'?'открытая':'закрытая'} головка — набор параметров изменится`); render(); } break;
+    case 'mnum': if(!S.ed.unlocked){ showTip(); break; }
+      { const p=edProg(), d=id==='d'; openKeypad({kind:'m',key:id,title:d?'Диаметр трубы':'Толщина трубы',sub:`Программа ${p.code}`,u:'мм',min:d?6:0.5,max:d?300:20,dec:d?1:2,cur:p[id]}); } break;
+    case 'key': kpKey(id); break;
+    case 'kp-one': kpApply(false); break;
+    case 'kp-all': kpApply(true); break;
+    case 'funcs': S.sheet='funcs'; render(); break;
+    case 'func-tgl': { const c=prog().common; c[id]=!c[id]; el.querySelector('.sw').classList.toggle('on',c[id]); note(`${COM[id].l}: ${c[id]?'ВКЛ':'ВЫКЛ'} — сохранено в программе ${prog().code}`); break; }
+    case 'func-off': prog().common[id]=false; render(); break;
+    case 'close': case 'veil':
+      if(S.sheet==='keypad' && S.kp && S.kp.back){ S.sheet=S.kp.back; S.kp=null; } else { S.sheet=null; S.kp=null; }
+      render(); break;
+    case 'ind-gas': note(gasOk()?'Газ (аргон): давление 4,2 бар — норма':'Газ: давление 0 бар — откройте баллон'); break;
+    case 'ind-water': note(waterOk()?'Охлаждение: проток в норме':'Охлаждение: нет протока — проверьте насос'); break;
+    case 'zero': returnZero(); break;
+    case 'stop': stopNow(); break;
+    case 'smooth': smoothStop(); break;
+    case 'newweld': S.torch=0; go('ready'); break;
+    case 'tab': S.tab=id; render(); break;
+    case 'test-gas': if(!gasOk()){ note('Нет давления газа'); break; } S.test.gas=S.test.gas>0?0:5; render(); break;
+    case 'test-water': if(!waterOk()){ note('Нет протока охлаждения'); break; } S.test.water=S.test.water>0?0:5; render(); break;
+    case 'standby': S.standby=true; render(); break;
+    case 'wake': S.standby=false; render(); break;
+  }
+});
+
+/* ================= панель презентера ================= */
+function syncDeck(){
+  document.querySelectorAll('#segHead button').forEach(b=>b.classList.toggle('on',b.dataset.head===headOf(prog().model)));
+  document.querySelectorAll('#segSpeed button').forEach(b=>b.classList.toggle('on',+b.dataset.speed===S.speed));
+  document.querySelectorAll('#segScn button').forEach(b=>b.classList.toggle('on',b.dataset.scn===S.scn));
+}
+$('deck').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.head && b.dataset.head!==headOf(prog().model)){
+    const keep={speed:S.speed,scn:S.scn,screen:['weld','manual'].includes(S.screen)?S.screen:'weld'}; S=freshState(b.dataset.head); Object.assign(S,keep); render();
+  }
+  if(b.dataset.speed){ S.speed=+b.dataset.speed; syncDeck(); }
+  if(b.dataset.scn){ S.scn=b.dataset.scn; render(); }
+  if(b.id==='btnReset'){ const sp=S.speed; S=freshState(headOf(prog().model)); S.speed=sp; render(); note('Демо сброшено'); }
+});
+document.addEventListener('keydown',e=>{ if(['h','H','р','Р'].includes(e.key)){ $('deck').classList.toggle('hidden'); fit(); } });
+
+/* ================= масштаб ================= */
+function fit(){
+  const hidden=$('deck').classList.contains('hidden');
+  const top=hidden?0:$('deck').offsetHeight, st=$('stage');
+  st.style.top=top+'px';
+  const w=st.clientWidth, h=st.clientHeight-16-48; // 48 — место под строку подсказок
+  const k=Math.min(w/1064,h/640);
+  $('rig').style.width=1064*k+'px'; $('rig').style.height=640*k+'px';
+  $('device').style.transform=`scale(${k})`;
+}
+addEventListener('resize',fit);
+fit(); render(); requestAnimationFrame(tick);
+</script>
+</body>
+</html>
